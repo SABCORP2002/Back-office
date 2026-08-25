@@ -4,6 +4,64 @@ import { clearSession, getSession, setSession } from './auth';
 // same HTTPS domain at `/api`. A separately hosted backoffice can still set
 // VITE_API_BASE_URL at build time (for example on Vercel).
 const API_BASE = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
+export const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE === 'true';
+
+const previewAdminSession = {
+  adminId: 'preview-admin',
+  role: 'ADMIN_SYSTEM' as const,
+  accessToken: 'preview-access-token',
+  refreshToken: 'preview-refresh-token',
+};
+
+/**
+ * Visual-only payloads used by the client preview build. They never reach a
+ * server and are deliberately kept separate from the production API flow.
+ */
+function previewResponse<T>(path: string): T {
+  if (path === '/admin/dashboard/summary') {
+    return {
+      volumeToday: '1250000', volumeChangePct: 8.4, transactionsToday: 42,
+      achatCount: 26, venteCount: 16, transactionsChangePct: 12.1,
+      grossMarginToday: '48750', grossMarginChangePct: 6.2,
+      netResultEstimateToday: '42100', netResultChangePct: 5.8,
+      activeUsers: 318, kycPending: 12, blockedTransactions: 2, errorRatePct: 0.4,
+    } as T;
+  }
+  if (path.startsWith('/admin/dashboard/charts')) {
+    return {
+      volumeSeries: [
+        { date: '2026-08-19', volume: '820000' }, { date: '2026-08-20', volume: '1040000' },
+        { date: '2026-08-21', volume: '910000' }, { date: '2026-08-22', volume: '1330000' },
+        { date: '2026-08-23', volume: '1170000' }, { date: '2026-08-24', volume: '1480000' },
+        { date: '2026-08-25', volume: '1250000' },
+      ],
+      achatVsVente: { achat: 26, vente: 16, total: 42 },
+      byCountry: [{ key: 'Cameroun', count: 21, pct: 50 }, { key: 'Sénégal', count: 13, pct: 31 }, { key: 'Côte d’Ivoire', count: 8, pct: 19 }],
+      byProvider: [{ key: 'Mobile Money', count: 29, pct: 69 }, { key: 'Crypto', count: 13, pct: 31 }],
+      byCrypto: [{ key: 'USDT', volume: '830000', pct: 66 }, { key: 'BTC', volume: '270000', pct: 22 }, { key: 'ETH', volume: '150000', pct: 12 }],
+    } as T;
+  }
+  if (path === '/admin/dashboard/alerts') return [] as T;
+  if (path === '/admin/users/stats') return { total: 624, newThisMonth: 58, active: 318, suspended: 4 } as T;
+  if (path === '/admin/kyc/stats') return { pending: 12, approved: 285, rejected: 7, manualReview: 3, approvalRatePct: 95.6 } as T;
+  if (path === '/admin/countries/stats') return { activeCountries: 3, totalCountries: 3, activePaymentMethods: 8, totalPaymentMethods: 8 } as T;
+  if (path === '/admin/finance/summary') {
+    return { revenueTotal: '720000', commissions: '685000', feesAndCharges: '35000', netProfit: '685000', availableBalance: '520000', totalWithdrawn: '200000' } as T;
+  }
+  if (path.startsWith('/admin/finance/period-breakdown')) return [] as T;
+  if (path === '/admin/settings') {
+    return {
+      platformName: 'JAL Trade', slogan: 'Votre crypto, votre contrôle.', contactEmail: 'support@jaltrade.com', contactPhone: '+237 6 00 00 00 00',
+      primaryCurrency: 'XAF', timezone: 'Africa/Douala', defaultLanguage: 'fr', notifyNewTransactions: true, notifyNewUsers: true,
+      notifyKycSubmitted: true, notifyDisputes: true, notifyDailyReports: false, notificationEmail: 'support@jaltrade.com',
+      autoLockMinutes: 30, requireHttps: true, ipRestriction: false,
+    } as T;
+  }
+  if (/^\/admin\/(transactions|users|kyc\/submissions|providers|pricing|countries|support\/tickets|finance\/withdrawals|auth\/sessions|settings\/activity-logs)/.test(path)) {
+    return [] as T;
+  }
+  return {} as T;
+}
 
 /**
  * Every function here calls a route that genuinely exists in
@@ -28,6 +86,7 @@ let refreshInFlight: Promise<string | null> | null = null;
 async function doRefresh(): Promise<string | null> {
   const session = getSession();
   if (!session) return null;
+  if (isPreviewMode) return session.accessToken;
   try {
     const res = await fetch(`${API_BASE}/admin/auth/refresh`, {
       method: 'POST',
@@ -47,6 +106,7 @@ async function doRefresh(): Promise<string | null> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
+  if (isPreviewMode) return previewResponse<T>(path);
   const session = getSession();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) };
   if (session) headers.Authorization = `Bearer ${session.accessToken}`;
@@ -86,6 +146,10 @@ function qs(params: Record<string, string | number | undefined>): string {
 
 /** For file-download endpoints (CSV export) — bypasses the JSON `request()` path. */
 async function downloadFile(path: string, filename: string) {
+  if (isPreviewMode) {
+    window.alert('Aperçu visuel : le téléchargement est disponible dans la version connectée au backend.');
+    return;
+  }
   const session = getSession();
   const headers: Record<string, string> = {};
   if (session) headers.Authorization = `Bearer ${session.accessToken}`;
@@ -231,6 +295,10 @@ export interface RoutingRule {
 // ---------------------------------------------------------------------------
 
 export async function login(email: string, password: string) {
+  if (isPreviewMode) {
+    setSession(previewAdminSession);
+    return previewAdminSession;
+  }
   const result = await post<{ adminId: string; role: 'SUPPORT' | 'OPERATIONS' | 'FINANCE' | 'ADMIN_SYSTEM'; accessToken: string; refreshToken: string }>(
     '/admin/auth/login',
     { email, password },

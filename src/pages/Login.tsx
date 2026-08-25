@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, LogIn } from 'lucide-react';
-import { login, ApiError } from '../lib/api';
+import { login, ApiError, isPreviewMode } from '../lib/api';
 
 /**
  * Was entirely missing — the previous scaffold had 10 pages and no login
@@ -10,8 +10,8 @@ import { login, ApiError } from '../lib/api';
  */
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(isPreviewMode ? 'demo@jaltrade.com' : '');
+  const [password, setPassword] = useState(isPreviewMode ? 'aperçu' : '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +63,11 @@ export default function LoginPage() {
           />
         </label>
 
+        {isPreviewMode && (
+          <div className="mb-4 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+            Mode aperçu : données de démonstration, aucune connexion au serveur.
+          </div>
+        )}
         {error && <div className="mb-4 rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{error}</div>}
 
         <button
@@ -71,7 +76,7 @@ export default function LoginPage() {
           className="flex w-full items-center justify-center gap-2 rounded-md bg-primary-container py-2.5 text-sm font-semibold text-primary-onContainer transition hover:brightness-110 disabled:opacity-50"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
-          Se connecter
+          {isPreviewMode ? 'Accéder à l’aperçu' : 'Se connecter'}
         </button>
       </form>
     </div>
