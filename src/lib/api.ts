@@ -1,6 +1,9 @@
 import { clearSession, getSession, setSession } from './auth';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+// In the all-in-one Docker delivery, the browser calls the API through the
+// same HTTPS domain at `/api`. A separately hosted backoffice can still set
+// VITE_API_BASE_URL at build time (for example on Vercel).
+const API_BASE = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
 
 /**
  * Every function here calls a route that genuinely exists in

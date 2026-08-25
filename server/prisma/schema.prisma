@@ -1,0 +1,816 @@
+// JAL Trade — database schema.
+//
+// This is a 1:1 translation of "JAL Trade — Technical Design Specification V1"
+// §1 (Data Model / Database Schema) into Prisma, plus the supporting tables the
+// frontend needs that the TDS doesn't spell out (auth, saved wallets/MoMo
+// methods, notifications, tickets, admin/provider/routing/pricing config).
+//
+// Every UNIQUE constraint called out in TDS §1 is enforced here at the DB
+// level, not just in application code — that's the whole point of TDS §5
+// (Concurrency & Locking Strategy): idempotency and anti-double-execution rely
+// on a constraint violation, not a "check then act" race.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Mirrors frontend/lib/data/models.dart TxType exactly — keep in sync.
+enum TxType {
+  achat
+  vente
+}
+
+/// Mirrors frontend/lib/data/models.dart TxStatus exactly (TDS §4.1/§4.2).
+/// The state-machine module is the only writer of this field outside seed
+/// data — see src/state-machine.
+enum TxStatus {
+  commandeCreee
+  paiementEnAttente
+  paiementRecu
+  cryptoEnCoursEnvoi
+  cryptoEnvoyee
+  enAttenteDeCrypto
+  cryptoDetectee
+  confirmationsBlockchainSuffisantes
+  paiementMobileMoneyEnCours
+  paiementEffectue
+  terminee
+  echec
+  expiree
+  annulee
+  interventionRequise
+  remboursementEnCours
+  rembourse
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum KycTier {
+  NONE
+  BASIC
+  STANDARD
+  ADVANCED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TriggeredBy {
+  system
+  webhook
+  admin
+  job
+}
+
+enum QuoteStatus {
+  ACTIVE
+  EXPIRED
+  LOCKED
+}
+
+enum PaymentDirection {
+  IN
+  OUT
+}
+
+/// TDS §1 payment_attempts.status — distinct from the four-way provider
+/// normalization below; Mobile Money has its own vocabulary.
+enum PaymentAttemptStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  UNKNOWN
+}
+
+enum ProviderOrderDirection {
+  BUY_SEND
+  SELL_RECEIVE
+}
+
+/// TDS §11.1 — every provider adapter normalizes into exactly one of these
+/// four. An unrecognized provider status is always JAL_UNKNOWN, never
+/// defaulted to success or failure (test scenario 15).
+enum NormalizedProviderStatus {
+  JAL_PENDING
+  JAL_SUCCESS
+  JAL_FAILED
+  JAL_UNKNOWN
+}
+
+enum BlockchainDirection {
+  OUTGOING
+  INCOMING
+}
+
+enum BlockchainTxStatus {
+  PENDING
+  DETECTED
+  CONFIRMED
+  FAILED
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  REJECTED
+}
+
+enum ReconciliationResult {
+  RECONCILED
+  ANOMALY
+}
+
+enum ProviderHealthStatus {
+  UP
+  DEGRADED
+  DOWN
+}
+
+/// TDS §10 permission matrix (Architecture Technique) — Support / Operations
+/// / Finance / Admin système. See src/admin-security/permission-matrix.ts for
+/// the action×role table this enum feeds.
+enum AdminRole {
+  SUPPORT
+  OPERATIONS
+  FINANCE
+  ADMIN_SYSTEM
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  ESCALATED
+}
+
+/// KYC-* risk banding shown on the back-office KYC review screen —
+/// admin-settable, never a fabricated auto-computed score (no real risk
+/// engine exists yet).
+enum KycRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CountryStatus {
+  ACTIVE
+  MAINTENANCE
+  DISABLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Users / KYC (UX §3.1–3.2)
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String     @id @default(cuid())
+  phone           String?    @unique
+  email           String?    @unique
+  passwordHash    String
+  pinHash         String?
+  country         String
+  kycStatus       KycStatus  @default(NOT_STARTED)
+  kycTier         KycTier    @default(NONE)
+  status          UserStatus @default(ACTIVE)
+  // AUTH-005 (Vérification OTP) — short-lived, self-contained rather than a
+  // separate table; cleared once consumed. Not the OTP FakeOtpSender itself
+  // sends (see src/auth/fake-otp.sender.ts).
+  otpCodeHash     String?
+  otpExpiresAt    DateTime?
+  verifiedAt      DateTime?
+  termsAcceptedAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  wallets        Wallet[]
+  momoMethods    SavedMobileMoneyMethod[]
+  transactions   Transaction[]
+  notifications  Notification[]
+  supportTickets SupportTicket[]
+  kycSubmissions KycSubmission[]
+  adminNotes     UserNote[]
+
+  @@index([country])
+  @@index([kycStatus])
+  @@map("users")
+}
+
+/// Holds the actual submitted documents/review trail. `User.kycStatus` /
+/// `kycTier` are the current, queryable state; this table is the append-style
+/// history behind them (UX §3.2, KYC-002…011).
+model KycSubmission {
+  id                 String       @id @default(cuid())
+  userId             String
+  user               User         @relation(fields: [userId], references: [id])
+  countryOfResidence String
+  nationality        String
+  documentType       String
+  frontDocRef        String?
+  backDocRef         String?
+  selfieRef          String?
+  status             KycStatus    @default(PENDING)
+  /// Admin-settable, shown on the back-office KYC review screen. Defaults
+  /// LOW — never a fabricated auto-score.
+  riskLevel          KycRiskLevel @default(LOW)
+  rejectionReason    String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime     @default(now())
+
+  @@index([userId])
+  @@map("kyc_submissions")
+}
+
+// ---------------------------------------------------------------------------
+// Transactions — registre central (TDS §1)
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  jalTransactionId String   @id // format JAL-AAAA-XXXXXXXX
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  type             TxType
+  status           TxStatus @default(commandeCreee)
+
+  crypto       String
+  network      String
+  fiatCurrency String
+
+  // Immuable dès verrouillage de la quote (TDS §1)
+  fiatAmountExpected   Decimal @db.Decimal(24, 8)
+  cryptoAmountExpected Decimal @db.Decimal(36, 18)
+  jalRateLocked        Decimal @db.Decimal(24, 8)
+  jalMargin            Decimal @db.Decimal(24, 8)
+
+  // Immuable dès confirmation (BUY-007) — BUY sets destinationWalletAddress,
+  // SELL sets depositAddressGenerated. Exactly one is populated per type.
+  destinationWalletAddress String?
+  depositAddressGenerated  String?
+
+  momoOperator String?
+  momoNumber   String?
+
+  providerId String?
+  provider   ProviderConfig? @relation(fields: [providerId], references: [id])
+
+  quoteId String? @unique
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  terminalAt DateTime?
+
+  events                 TransactionEvent[]
+  paymentAttempts        PaymentAttempt[]
+  providerOrders         ProviderOrder[]
+  blockchainTransactions BlockchainTransaction[]
+  refund                 Refund?
+  reconciliationRecords  ReconciliationRecord[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([providerId])
+  @@map("transactions")
+}
+
+/// Append-only — no application code ever UPDATEs or DELETEs a row here
+/// (TDS §1). Reconstructs the full timeline for TXN-003 / ADM-TXN-003.
+model TransactionEvent {
+  id               String      @id @default(cuid())
+  jalTransactionId String
+  transaction      Transaction @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  eventType        String
+  previousStatus   TxStatus?
+  newStatus        TxStatus
+  triggeredBy      TriggeredBy
+  sourceReference  String?
+  metadata         Json?
+  createdAt        DateTime    @default(now())
+
+  @@index([jalTransactionId, createdAt])
+  @@map("transaction_events")
+}
+
+/// Immuable — jamais recalculé après coup (TDS §1). The 1:1 with Transaction
+/// via Transaction.quoteId (unique) is what enforces "at most one LOCKED
+/// quote per jal_transaction_id" — a quote only ever attaches to one tx.
+model Quote {
+  id            String       @id @default(cuid())
+  crypto        String
+  network       String
+  fiatCurrency  String
+  providerRate  Decimal      @db.Decimal(24, 8)
+  jalMargin     Decimal      @db.Decimal(24, 8)
+  jalRateClient Decimal      @db.Decimal(24, 8)
+  generatedAt   DateTime     @default(now())
+  expiresAt     DateTime
+  status        QuoteStatus  @default(ACTIVE)
+  lockedAt      DateTime?
+  transaction   Transaction?
+
+  @@index([expiresAt])
+  @@map("quotes")
+}
+
+/// Mobile Money — entrant Buy / sortant Sell (TDS §1).
+model PaymentAttempt {
+  id                String               @id @default(cuid())
+  jalTransactionId  String
+  transaction       Transaction          @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  direction         PaymentDirection
+  operator          String
+  phoneNumber       String
+  amount            Decimal              @db.Decimal(24, 8)
+  idempotencyKey    String               @unique
+  status            PaymentAttemptStatus @default(PENDING)
+  providerReference String?
+  confirmedAt       DateTime?
+  createdAt         DateTime             @default(now())
+
+  @@index([jalTransactionId])
+  @@index([status])
+  @@map("payment_attempts")
+}
+
+/// Fournisseur crypto (TDS §1). `providerOrderId` is only known once the
+/// provider responds — the second unique constraint is partial by nature of
+/// nullable columns (Postgres treats multiple NULLs as distinct).
+model ProviderOrder {
+  id                String                   @id @default(cuid())
+  jalTransactionId  String
+  transaction       Transaction              @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  providerId        String
+  provider          ProviderConfig           @relation(fields: [providerId], references: [id])
+  idempotencyKey    String                   @unique
+  direction         ProviderOrderDirection
+  requestedAmount   Decimal                  @db.Decimal(36, 18)
+  providerOrderId   String?
+  status            NormalizedProviderStatus @default(JAL_PENDING)
+  rawProviderStatus String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([providerId, providerOrderId])
+  @@index([jalTransactionId])
+  @@index([status])
+  @@map("provider_orders")
+}
+
+/// Contrainte critique : UNIQUE(tx_hash) quand non-null — anti-replay
+/// (TDS §1, test scenario 10). A hash can only ever attach to one JAL
+/// Transaction ID.
+model BlockchainTransaction {
+  id               String              @id @default(cuid())
+  jalTransactionId String
+  transaction      Transaction         @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  network          String
+  direction        BlockchainDirection
+  amountExpected   Decimal             @db.Decimal(36, 18)
+  txHash           String?             @unique
+  amountDetected   Decimal?            @db.Decimal(36, 18)
+  confirmations    Int                 @default(0)
+  status           BlockchainTxStatus  @default(PENDING)
+  detectedAt       DateTime?
+  confirmedAt      DateTime?
+
+  @@index([jalTransactionId])
+  @@index([status])
+  @@map("blockchain_transactions")
+}
+
+/// Contrainte V1 (TDS §13, Refund Rules) : remboursement total unique —
+/// UNIQUE(jal_transaction_id) enforced at the DB level, not just app logic.
+model Refund {
+  id                String       @id @default(cuid())
+  jalTransactionId  String       @unique
+  transaction       Transaction  @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  amount            Decimal      @db.Decimal(24, 8)
+  destination       String
+  reason            String
+  authorizedBy      String
+  authorizedByAdmin AdminUser    @relation(fields: [authorizedBy], references: [id])
+  // Two distinct admin accounts required above the configurable threshold
+  // (Arch §10, TDS §13) — never the same account as authorizedBy.
+  coValidatedBy     String?
+  status            RefundStatus @default(REQUESTED)
+  completedAt       DateTime?
+  createdAt         DateTime     @default(now())
+
+  @@index([status])
+  @@map("refunds")
+}
+
+/// Garde-fou transverse (TDS §1/§5/§6) — the primary anti-double-execution
+/// mechanism. INSERT is atomic; a UNIQUE violation on `key` means another
+/// process already owns this operation. See src/common/idempotency.service.ts.
+model IdempotencyKey {
+  key              String            @id
+  operationType    String
+  jalTransactionId String?
+  resultSnapshot   Json?
+  status           IdempotencyStatus @default(IN_PROGRESS)
+  createdAt        DateTime          @default(now())
+
+  @@index([jalTransactionId])
+  @@map("idempotency_keys")
+}
+
+/// Contrainte de déduplication (TDS §1/§8) — a second webhook delivery for
+/// the same (source, externalEventId) fails the INSERT and becomes a no-op.
+model WebhookEvent {
+  id               String                  @id @default(cuid())
+  source           String
+  externalEventId  String
+  rawPayload       Json
+  signatureValid   Boolean
+  receivedAt       DateTime                @default(now())
+  eventTimestamp   DateTime?
+  jalTransactionId String?
+  processedAt      DateTime?
+  processingStatus WebhookProcessingStatus @default(RECEIVED)
+
+  @@unique([source, externalEventId])
+  @@index([jalTransactionId])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@map("webhook_events")
+}
+
+/// Append-only — un enregistrement par run (TDS §1/§9). No uniqueness: the
+/// same transaction accumulates one row per reconciliation cycle, and
+/// resolution is a later run finding RECONCILED, never an UPDATE.
+model ReconciliationRecord {
+  id                String               @id @default(cuid())
+  jalTransactionId  String
+  transaction       Transaction          @relation(fields: [jalTransactionId], references: [jalTransactionId])
+  runAt             DateTime             @default(now())
+  jalStatus         TxStatus
+  mobileMoneyStatus String?
+  providerStatus    String?
+  blockchainStatus  String?
+  expectedAmounts   Json
+  actualAmounts     Json
+  result            ReconciliationResult
+  anomalyType       String?
+
+  @@index([jalTransactionId, runAt])
+  @@index([result])
+  @@map("reconciliation_records")
+}
+
+/// admin_actions / audit_logs (TDS §1/§15, Arch §11) — append-only. The
+/// application-layer service never UPDATEs or DELETEs; production hardening
+/// (a DB role with INSERT-only grants on this table) is documented in
+/// docs/hardening/audit-role.sql, not automated by the default dev migration.
+model AdminAction {
+  id                     String    @id @default(cuid())
+  adminId                String
+  admin                  AdminUser @relation(fields: [adminId], references: [id])
+  actionType             String
+  jalTransactionId       String?
+  oldValue               Json?
+  newValue               Json?
+  justification          String
+  performedAt            DateTime  @default(now())
+  ipAddress              String?
+  requiresDualValidation Boolean   @default(false)
+  coValidatedBy          String?
+
+  @@index([jalTransactionId])
+  @@index([adminId])
+  @@index([performedAt])
+  @@map("admin_actions")
+}
+
+/// UNIQUE(provider_id) — un seul enregistrement d'état vivant par fournisseur
+/// (TDS §1). Detailed history, if ever needed, would live in a separate
+/// events table — out of scope for V1 per the spec.
+model ProviderHealth {
+  id                String               @id @default(cuid())
+  providerId        String               @unique
+  provider          ProviderConfig       @relation(fields: [providerId], references: [id])
+  status            ProviderHealthStatus @default(UP)
+  successRateWindow Float?
+  avgLatencyMs      Int?
+  lastCheckAt       DateTime?
+  disabledManually  Boolean              @default(false)
+  disabledBy        String?
+
+  @@index([status])
+  @@map("provider_health")
+}
+
+// ---------------------------------------------------------------------------
+// Provider / routing / pricing configuration (back-office — UX §4.3–4.5)
+// ---------------------------------------------------------------------------
+
+/// ADM-PROV-001…004. Not in the TDS table list verbatim — the TDS assumes a
+/// "fournisseur" concept exists without spelling out its config table; this
+/// is that table.
+model ProviderConfig {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  supportedCountries String[]
+  supportedCryptos   String[]
+  supportedNetworks  String[]
+  active             Boolean  @default(true)
+  /// Lower = preferred by auto-routing (Arch §13 / TDS §3).
+  priority           Int      @default(100)
+  webhookSecret      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  health         ProviderHealth?
+  transactions   Transaction[]
+  providerOrders ProviderOrder[]
+
+  @@map("provider_configs")
+}
+
+/// ADM-ROUTE-001…006 — matrices de disponibilité / forçage manuel / failover.
+model RoutingRule {
+  id               String   @id @default(cuid())
+  country          String?
+  crypto           String?
+  network          String?
+  forcedProviderId String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@map("routing_rules")
+}
+
+/// ADM-PRICE-001…007 — marge par pays/devise/crypto/sens/fournisseur.
+model PricingConfig {
+  id           String   @id @default(cuid())
+  country      String?
+  crypto       String?
+  direction    TxType?
+  marginPct    Decimal  @db.Decimal(6, 4)
+  marginMinPct Decimal? @db.Decimal(6, 4)
+  marginMaxPct Decimal? @db.Decimal(6, 4)
+  feeFixed     Decimal  @default(0) @db.Decimal(24, 8)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("pricing_configs")
+}
+
+/// Pays & Paiements (back-office) — not itemized in TDS §1 or the UX
+/// inventory's ADM-* tables at all; country/operator names were free-text
+/// everywhere until now (and the Flutter client's operator list is
+/// hardcoded in mobile_money_catalog.dart). This is the real catalog table
+/// a "Pays & Paiements" admin screen actually needs.
+model Country {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  code        String        @unique
+  currency    String
+  timezone    String?
+  kycRequired Boolean       @default(true)
+  status      CountryStatus @default(ACTIVE)
+  minAmount   Decimal?      @db.Decimal(24, 8)
+  maxAmount   Decimal?      @db.Decimal(24, 8)
+  dailyMax    Decimal?      @db.Decimal(24, 8)
+  description String?
+  activatedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  paymentMethods CountryPaymentMethod[]
+
+  @@map("countries")
+}
+
+model CountryPaymentMethod {
+  id        String   @id @default(cuid())
+  countryId String
+  country   Country  @relation(fields: [countryId], references: [id])
+  name      String
+  type      String
+  feePct    Decimal? @db.Decimal(6, 4)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([countryId, name])
+  @@map("country_payment_methods")
+}
+
+// ---------------------------------------------------------------------------
+// Client-facing supporting tables (not in TDS §1 verbatim — inferred from the
+// UX inventory: Mes Wallets §3.7, Gestion Mobile Money §3.6, Notifications
+// §16, Support §17)
+// ---------------------------------------------------------------------------
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  label     String
+  crypto    String
+  network   String
+  address   String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, crypto, network, address])
+  @@index([userId])
+  @@map("wallets")
+}
+
+model SavedMobileMoneyMethod {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  operatorName String
+  country      String
+  phoneNumber  String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, operatorName, phoneNumber])
+  @@index([userId])
+  @@map("saved_mobile_money_methods")
+}
+
+model Notification {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  title            String
+  body             String
+  jalTransactionId String?
+  read             Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([jalTransactionId])
+  @@map("notifications")
+}
+
+model SupportTicket {
+  id               String       @id @default(cuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id])
+  subject          String
+  jalTransactionId String?
+  status           TicketStatus @default(OPEN)
+  description      String?
+  proofRef         String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  notes SupportTicketNote[]
+
+  @@index([userId])
+  @@index([jalTransactionId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model SupportTicketNote {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id])
+  authorId  String
+  note      String
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+  @@map("support_ticket_notes")
+}
+
+/// Utilisateurs (back-office) — "Ajouter une note" on the client detail panel.
+model UserNote {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  adminId   String
+  admin     AdminUser @relation(fields: [adminId], references: [id])
+  note      String
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("user_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Back-office accounts (Arch §10, TDS §14)
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         AdminRole
+  createdAt    DateTime  @default(now())
+
+  adminActions         AdminAction[]
+  refundsAuthorized    Refund[]
+  sessions             AdminSession[]
+  withdrawalsRequested PlatformWithdrawal[]
+  userNotes            UserNote[]
+
+  @@map("admin_users")
+}
+
+/// Created on every admin login — backs "Gestion des sessions" / "Appareils
+/// autorisés" (Paramètres & Sécurité) and is what the web app's refresh
+/// token is actually validated against, so a revoked session invalidates
+/// the session immediately rather than waiting for token expiry.
+model AdminSession {
+  id         String    @id @default(cuid())
+  adminId    String
+  admin      AdminUser @relation(fields: [adminId], references: [id])
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([adminId])
+  @@map("admin_sessions")
+}
+
+/// Singleton row (Paramètres & Sécurité — Général/Notifications/Protection
+/// avancée tabs). `id` is always the literal string "singleton"; the
+/// service does an upsert against it rather than allowing a second row.
+model PlatformSettings {
+  id                    String   @id @default("singleton")
+  platformName          String   @default("JAL Trade")
+  slogan                String?
+  contactEmail          String?
+  contactPhone          String?
+  primaryCurrency       String   @default("XAF")
+  timezone              String   @default("Africa/Douala")
+  defaultLanguage       String   @default("fr")
+  notifyNewTransactions Boolean  @default(true)
+  notifyNewUsers        Boolean  @default(true)
+  notifyKycSubmitted    Boolean  @default(true)
+  notifyDisputes        Boolean  @default(true)
+  notifyDailyReports    Boolean  @default(false)
+  notificationEmail     String?
+  autoLockMinutes       Int      @default(30)
+  requireHttps          Boolean  @default(true)
+  ipRestriction         Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+/// Finance & Rapports — "Solde & Retraits" / "Effectuer un retrait". This is
+/// JAL's own revenue withdrawal ledger, unrelated to any client-facing
+/// concept; revenue itself is derived from SUM(jalMargin) over Transaction,
+/// no separate ledger needed for that half.
+model PlatformWithdrawal {
+  id          String           @id @default(cuid())
+  amount      Decimal          @db.Decimal(24, 8)
+  currency    String
+  requestedBy String
+  admin       AdminUser        @relation(fields: [requestedBy], references: [id])
+  destination String?
+  status      WithdrawalStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+
+  @@index([status])
+  @@map("platform_withdrawals")
+}

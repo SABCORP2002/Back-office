@@ -5,6 +5,15 @@ Web admin platform (React + TypeScript + Vite + Tailwind), built to match the
 Fournisseurs, Taux & Marges, Pays & Paiements, Support & Litiges, Finance &
 Rapports, Paramètres & Sécurité.
 
+## Client delivery
+
+This folder is self-contained. `server/` contains the NestJS backend and its
+PostgreSQL Prisma schema. `docker-compose.production.yml` starts the web
+interface, API, database, and HTTPS proxy together.
+
+For the client installation, follow **[DEPLOYMENT.md](DEPLOYMENT.md)**. It
+does not require Vercel, Neon, or a separate backend repository.
+
 ## Status
 
 **All 10 screens wired to the real NestJS backend (`../backend`) — no
@@ -58,6 +67,10 @@ src/
 approved mockup screenshots.
 
 ## Running it
+
+For the client delivery and production deployment, use the single Docker
+command documented in **[DEPLOYMENT.md](DEPLOYMENT.md)**. The older local
+development instructions below are only for developers working on source.
 
 Backend first (needs a real `DATABASE_URL` — see `../backend/.env.example`;
 this sandbox has none):

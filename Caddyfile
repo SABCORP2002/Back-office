@@ -1,0 +1,14 @@
+{$APP_DOMAIN} {
+    encode zstd gzip
+
+    # The browser never needs to know the internal API hostname or port.
+    handle_path /api/* {
+        reverse_proxy api:3000
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

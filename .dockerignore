@@ -1,0 +1,13 @@
+.git
+node_modules
+dist
+logs
+*.log
+.env
+.env.*
+!.env.example
+!.env.production.example
+server
+delivery
+.idea
+.vscode
