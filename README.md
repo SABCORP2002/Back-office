@@ -14,6 +14,10 @@ interface, API, database, and HTTPS proxy together.
 For the client installation, follow **[DEPLOYMENT.md](DEPLOYMENT.md)**. It
 does not require Vercel, Neon, or a separate backend repository.
 
+The Docker delivery must be the **single central API and PostgreSQL database**
+for both the backoffice and the mobile app. See the mobile-app integration
+section in `DEPLOYMENT.md`; a second API/database would create separate data.
+
 ## Status
 
 **All 10 screens wired to the real NestJS backend (`../backend`) — no

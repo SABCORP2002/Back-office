@@ -4,6 +4,23 @@ Cette archive contient l'interface React, le backend NestJS et PostgreSQL.
 Le navigateur appelle l'API au chemin relatif `/api` : aucune URL d'API, règle
 CORS ou variable Vercel n'est à configurer côté navigateur.
 
+## Instance centrale : backoffice et application mobile
+
+Cette pile Docker crÃ©e une base PostgreSQL neuve. Elle doit donc Ãªtre dÃ©ployÃ©e
+comme **l'unique instance centrale** de JAL Trade, et non Ã  cÃ´tÃ© d'un autre
+backend avec sa propre base de donnÃ©es. Pour que l'application mobile et le
+backoffice affichent les mÃªmes utilisateurs, transactions et configurations,
+l'application mobile doit Ãªtre configurÃ©e avec la mÃªme API :
+
+```text
+https://backoffice.votredomaine.com/api
+```
+
+Ne dÃ©ployez pas cette archive comme une seconde instance si l'application
+mobile utilise dÃ©jÃ  une autre API ou base de donnÃ©es : les deux plateformes ne
+partageraient alors aucune donnÃ©e. Un transfert de donnÃ©es doit Ãªtre planifiÃ©
+si une ancienne base existe.
+
 ## Pré-requis serveur
 
 - Un VPS Ubuntu 22.04 ou 24.04 avec Docker Engine et Docker Compose.
