@@ -21,6 +21,22 @@ const PREVIEW_ALL_PERMISSIONS: AdminPermission[] = [
   'MANAGE_PLATFORM_SETTINGS', 'VIEW_AUDIT_LOGS', 'VIEW_ADMIN_USERS', 'MANAGE_ADMIN_USERS',
 ];
 
+const PREVIEW_PERMISSION_MATRIX: Record<'SUPPORT' | 'OPERATIONS' | 'FINANCE' | 'ADMIN_SYSTEM', AdminPermission[]> = {
+  SUPPORT: ['VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'VIEW_USERS', 'VIEW_KYC', 'VIEW_SUPPORT', 'MANAGE_SUPPORT', 'VIEW_COUNTRIES_PAYMENTS'],
+  OPERATIONS: [
+    'VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'INTERVENE_TRANSACTIONS', 'FORCE_TRANSACTION_PROVIDER', 'ISSUE_REFUND',
+    'VIEW_USERS', 'MANAGE_USERS', 'VIEW_KYC', 'REVIEW_KYC', 'VIEW_SUPPORT', 'MANAGE_SUPPORT', 'VIEW_PROVIDERS', 'MANAGE_PROVIDERS',
+    'VIEW_PRICING', 'VIEW_COUNTRIES_PAYMENTS', 'VIEW_ROUTING', 'VIEW_RECONCILIATION', 'VIEW_AUDIT_LOGS', 'VIEW_GROWTH_PROGRAMS',
+    'MANAGE_GROWTH_PROGRAMS', 'REVIEW_AMBASSADOR_APPLICATIONS',
+  ],
+  FINANCE: [
+    'VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'ISSUE_REFUND', 'VIEW_USERS', 'VIEW_PROVIDERS', 'VIEW_PRICING',
+    'MANAGE_PRICING', 'VIEW_COUNTRIES_PAYMENTS', 'VIEW_GROWTH_PROGRAMS', 'MANAGE_GROWTH_PROGRAMS', 'SETTLE_GROWTH_REWARDS',
+    'VIEW_FINANCIAL_REPORTS', 'EXPORT_FINANCIAL_REPORTS', 'VIEW_RECONCILIATION',
+  ],
+  ADMIN_SYSTEM: PREVIEW_ALL_PERMISSIONS,
+};
+
 const previewAdminSession = {
   adminId: 'preview-admin',
   role: 'ADMIN_SYSTEM' as const,
@@ -159,6 +175,7 @@ function previewResponse<T>(path: string, options: RequestInit = {}): T {
       { id: 'preview-operations', email: 'operations@jaltrade.com', displayName: 'Équipe Opérations', role: 'OPERATIONS', isActive: true, permissions: ['VIEW_TRANSACTION', 'CHANGE_TRANSACTION_STATUS', 'FORCE_PROVIDER', 'TRIGGER_REFUND', 'TOGGLE_PROVIDER', 'MODIFY_KYC'], permissionsConfigured: true, createdAt: '2026-08-04T09:00:00.000Z', updatedAt: '2026-08-25T14:00:00.000Z' },
     ] as T; */
   }
+  if (path === '/admin/admin-users/permission-matrix') return PREVIEW_PERMISSION_MATRIX as T;
   if (path === '/admin/users/stats') return { total: 624, newThisMonth: 58, active: 318, suspended: 4 } as T;
   if (path === '/admin/kyc/stats') return { pending: 12, approved: 285, rejected: 7, manualReview: 3, approvalRatePct: 95.6 } as T;
   if (path === '/admin/countries/stats') return { activeCountries: 8, totalCountries: 8, activePaymentMethods: 22, totalPaymentMethods: 24 } as T;
