@@ -5,7 +5,8 @@ export function formatAmount(value: string | number, currency?: string): string 
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
-export function formatPct(value: number, opts: { sign?: boolean } = {}): string {
+export function formatPct(value: number | null | undefined, opts: { sign?: boolean } = {}): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—';
   const sign = opts.sign !== false && value > 0 ? '+' : '';
   return `${sign}${value.toFixed(1)}%`;
 }

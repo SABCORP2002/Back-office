@@ -5,6 +5,7 @@ import { Card, StatCard, Select, SearchInput, Button, Avatar, Tabs } from '../co
 import { Badge } from '../components/Badge';
 import { kycApi, type KycSubmission } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { hasPermission } from '../lib/auth';
 
 const RISK_LABELS: Record<KycSubmission['riskLevel'], string> = { LOW: 'Faible', MEDIUM: 'Moyen', HIGH: 'Élevé' };
 const RISK_TONE: Record<KycSubmission['riskLevel'], 'success' | 'warning' | 'error'> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'error' };
@@ -21,6 +22,7 @@ type Tab = 'pending' | 'approved' | 'rejected' | 'manual_review';
  * labels rather than fabricated document thumbnails.
  */
 export default function KycPage() {
+  const canReview = hasPermission('REVIEW_KYC');
   const [tab, setTab] = useState<Tab>('pending');
   const [country, setCountry] = useState('');
   const [docType, setDocType] = useState('');
@@ -66,7 +68,7 @@ export default function KycPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-5 gap-4">
+      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <StatCard icon={Clock} iconTone="warning" label="À vérifier" value={stats?.pending ?? '—'} />
         <StatCard icon={CheckCircle2} iconTone="success" label="Approuvés" value={stats ? stats.approved.toLocaleString('fr-FR') : '—'} />
         <StatCard icon={XCircle} iconTone="error" label="Rejetés" value={stats?.rejected ?? '—'} />
@@ -74,7 +76,7 @@ export default function KycPage() {
         <StatCard icon={TrendingUp} label="Taux d'approbation" value={stats ? `${stats.approvalRatePct}%` : '—'} />
       </div>
 
-      <div className="grid grid-cols-[1fr_380px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           <div className="mb-4">
             <Tabs
@@ -90,7 +92,7 @@ export default function KycPage() {
           </div>
 
           <Card className="mb-4">
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SearchInput value={country} onChange={setCountry} placeholder="Pays de résidence..." />
               <Select value={docType} onChange={setDocType} options={["carte_identite", 'passeport', 'permis_conduire']} placeholder="Type de document" />
               <Select value={risk} onChange={setRisk} options={[{ value: 'LOW', label: 'Faible' }, { value: 'MEDIUM', label: 'Moyen' }, { value: 'HIGH', label: 'Élevé' }]} placeholder="Niveau de risque" />
@@ -171,12 +173,12 @@ export default function KycPage() {
 
             <div className="mt-4 border-t border-border pt-4">
               <div className="mb-2 text-xs font-bold tracking-wide text-onSurfaceVariant">DOCUMENTS SOUMIS</div>
-              <div className="grid grid-cols-3 gap-2 text-[10px] text-onSurfaceVariant">
+              <div className="grid grid-cols-1 gap-2 text-[10px] text-onSurfaceVariant sm:grid-cols-3">
                 <div className="rounded-md border border-border bg-surface-higher p-2 text-center">{selected.frontDocRef ? '✓ Recto' : '— Recto'}</div>
                 <div className="rounded-md border border-border bg-surface-higher p-2 text-center">{selected.backDocRef ? '✓ Verso' : '— Verso'}</div>
                 <div className="rounded-md border border-border bg-surface-higher p-2 text-center">{selected.selfieRef ? '✓ Selfie' : '— Selfie'}</div>
               </div>
-              <div className="mt-2 flex gap-2">
+              {canReview && <div className="mt-2 flex gap-2">
                 {(['LOW', 'MEDIUM', 'HIGH'] as const).map((r) => (
                   <button
                     key={r}
@@ -186,13 +188,13 @@ export default function KycPage() {
                     {RISK_LABELS[r]}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
 
-            {selected.status === 'PENDING' && (
+            {selected.status === 'PENDING' && canReview && (
               <div className="mt-4 border-t border-border pt-4">
                 <div className="mb-2 text-xs font-bold tracking-wide text-onSurfaceVariant">ACTIONS</div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <Button
                     variant="primary"
                     className="justify-center text-xs"

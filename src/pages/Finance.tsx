@@ -1,19 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Wallet, Download, Landmark, DollarSign, Cpu, Wand2, CalendarClock } from 'lucide-react';
+import { Wallet, Download, DollarSign, Cpu, Wand2, CalendarClock, ShieldCheck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Screen, PageHeader } from '../layout/Screen';
 import { Card, CardTitle, StatCard, Button } from '../components/ui';
-import { Badge } from '../components/Badge';
 import { financeApi } from '../lib/api';
 import { formatAmount, formatDate } from '../lib/format';
+import { hasPermission } from '../lib/auth';
 
 type Summary = Awaited<ReturnType<typeof financeApi.summary>>;
 type Breakdown = Awaited<ReturnType<typeof financeApi.periodBreakdown>>;
-type Withdrawal = Awaited<ReturnType<typeof financeApi.withdrawals>>[number];
-
-const WITHDRAWAL_TONE: Record<Withdrawal['status'], 'success' | 'warning' | 'error'> = { PAID: 'success', PENDING: 'warning', FAILED: 'error' };
-const WITHDRAWAL_LABELS: Record<Withdrawal['status'], string> = { PAID: 'Payé', PENDING: 'En cours', FAILED: 'Échoué' };
-
 /**
  * `commissions`/`netProfit` deliberately equal `revenueTotal` here — no
  * separate commission/cost ledger exists in the real schema (see
@@ -23,35 +18,24 @@ const WITHDRAWAL_LABELS: Record<Withdrawal['status'], string> = { PAID: 'Payé',
  * were dropped rather than left as dead buttons.
  */
 export default function FinancePage() {
+  const canExport = hasPermission('EXPORT_FINANCIAL_REPORTS');
   const [dateFrom, setDateFrom] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [summary, setSummary] = useState<Summary | null>(null);
   const [breakdown, setBreakdown] = useState<Breakdown>([]);
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [error, setError] = useState(false);
 
   function load() {
     setError(false);
-    Promise.all([financeApi.summary(dateFrom, dateTo), financeApi.periodBreakdown(dateFrom, dateTo), financeApi.withdrawals()])
-      .then(([s, b, w]) => {
+    Promise.all([financeApi.summary(dateFrom, dateTo), financeApi.periodBreakdown(dateFrom, dateTo)])
+      .then(([s, b]) => {
         setSummary(s);
         setBreakdown(b);
-        setWithdrawals(w);
       })
       .catch(() => setError(true));
   }
 
   useEffect(load, [dateFrom, dateTo]);
-
-  async function requestWithdrawal() {
-    const amount = window.prompt('Montant à retirer (XAF) :');
-    if (!amount) return;
-    const destination = window.prompt('Destination (compte bancaire) :') ?? '';
-    const justification = window.prompt('Justification :') ?? '';
-    if (!justification) return;
-    await financeApi.requestWithdrawal(Number(amount), 'XAF', destination, justification);
-    load();
-  }
 
   const totals = breakdown.reduce(
     (acc, r) => ({ revenue: acc.revenue + Number(r.revenueTotal), fees: acc.fees + Number(r.feesAndCharges), net: acc.net + Number(r.netProfit) }),
@@ -61,7 +45,7 @@ export default function FinancePage() {
   return (
     <Screen
       topbarRight={
-        <div className="flex items-center gap-2 rounded-md border border-border bg-surface-higher px-3 py-2 text-sm text-onSurfaceVariant">
+        <div className="hidden items-center gap-2 rounded-md border border-border bg-surface-higher px-3 py-2 text-sm text-onSurfaceVariant lg:flex">
           <CalendarClock size={14} />
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent outline-none" />
           –
@@ -72,20 +56,29 @@ export default function FinancePage() {
       <PageHeader
         icon={Wallet}
         title="Finance & Rapports"
-        subtitle="Suivez les performances financières et générez des rapports détaillés."
-        action={<Button variant="primary" icon={Download} onClick={() => financeApi.export(dateFrom, dateTo)}>Exporter (CSV)</Button>}
+        subtitle="Suivez les commissions et frais de service, sans conservation de fonds clients."
+        action={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 rounded-md border border-border bg-surface-higher px-3 py-2 text-sm text-onSurfaceVariant lg:hidden">
+              <CalendarClock size={14} className="shrink-0" />
+              <input aria-label="Date de debut" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="min-w-0 flex-1 bg-transparent text-xs outline-none" />
+              <span aria-hidden="true">-</span>
+              <input aria-label="Date de fin" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-w-0 flex-1 bg-transparent text-xs outline-none" />
+            </div>
+            {canExport && <Button variant="primary" icon={Download} onClick={() => financeApi.export(dateFrom, dateTo)} className="w-full sm:w-auto">Exporter (CSV)</Button>}
+          </div>
+        }
       />
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard icon={DollarSign} iconTone="success" label="Revenu total" value={summary ? formatAmount(summary.revenueTotal, 'XAF') : '—'} />
         <StatCard icon={Cpu} iconTone="info" label="Commissions" value={summary ? formatAmount(summary.commissions, 'XAF') : '—'} footer={<span className="text-onSurfaceVariant">= revenu total (pas de ledger de coûts distinct)</span>} />
         <StatCard icon={Wand2} iconTone="warning" label="Bénéfice net" value={summary ? formatAmount(summary.netProfit, 'XAF') : '—'} />
-        <StatCard icon={Landmark} label="Solde disponible" value={summary ? formatAmount(summary.availableBalance, 'XAF') : '—'} footer={<span className="text-onSurfaceVariant">Revenu − retraits payés</span>} />
       </div>
 
-      <div className="grid grid-cols-[1fr_360px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardTitle>Évolution des revenus (marge JAL)</CardTitle>
           {breakdown.length === 0 ? (
@@ -105,28 +98,14 @@ export default function FinancePage() {
         </Card>
 
         <Card>
-          <CardTitle>Solde & Retraits</CardTitle>
-          <div className="space-y-1.5 text-sm">
-            <Row label="Solde disponible" value={<span className="text-success">{summary ? formatAmount(summary.availableBalance, 'XAF') : '—'}</span>} />
-            <Row label="Total retiré" value={summary ? formatAmount(summary.totalWithdrawn, 'XAF') : '—'} />
+          <CardTitle>Mode non-custodial</CardTitle>
+          <div className="rounded-md border border-success/25 bg-success/10 p-3 text-sm">
+            <div className="flex items-center gap-2 font-semibold text-success"><ShieldCheck size={17} /> Fonds sous contrôle du client</div>
+            <p className="mt-2 leading-5 text-onSurfaceVariant">JAL Trade ne détient, ne stocke et ne retire aucun solde de portefeuille client.</p>
           </div>
-          <Button variant="primary" className="mt-3 w-full justify-center" onClick={requestWithdrawal}>🏦 Effectuer un retrait</Button>
-
-          <div className="mt-4 text-xs font-bold tracking-wide text-onSurfaceVariant">DERNIERS RETRAITS</div>
-          <div className="mt-2 space-y-2">
-            {withdrawals.slice(0, 6).map((w) => (
-              <div key={w.id} className="flex items-center justify-between text-xs">
-                <span>{w.admin.email}</span>
-                <span className="text-onSurfaceVariant">{formatAmount(w.amount)} {w.currency}</span>
-                <div className="flex items-center gap-2">
-                  <Badge tone={WITHDRAWAL_TONE[w.status]}>{WITHDRAWAL_LABELS[w.status]}</Badge>
-                  {w.status === 'PENDING' && (
-                    <button className="text-primary" onClick={() => financeApi.markPaid(w.id).then(load)}>Marquer payé</button>
-                  )}
-                </div>
-              </div>
-            ))}
-            {withdrawals.length === 0 && <div className="text-xs text-onSurfaceVariant">Aucun retrait.</div>}
+          <div className="mt-4 space-y-3 text-sm">
+            <div><div className="font-medium text-onSurface">Rapports disponibles</div><div className="mt-0.5 text-xs leading-5 text-onSurfaceVariant">Volumes, commissions, frais de service et performance par période.</div></div>
+            <div><div className="font-medium text-onSurface">Transactions transparentes</div><div className="mt-0.5 text-xs leading-5 text-onSurfaceVariant">Les actifs numériques sont envoyés entre les fournisseurs et les wallets externes.</div></div>
           </div>
         </Card>
       </div>
@@ -167,14 +146,5 @@ export default function FinancePage() {
         </div>
       </Card>
     </Screen>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-onSurfaceVariant">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
   );
 }

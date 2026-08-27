@@ -30,10 +30,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg border border-border bg-surface-low p-8">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg border border-border bg-surface-low p-5 sm:p-8">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-container text-2xl">🤝</div>
+          <img src="/jal_trade_logo_complete_final.png" alt="JAL Trade" className="h-24 w-20 object-contain object-center" />
           <div className="text-center">
             <div className="text-xl font-extrabold">
               <span className="text-primary-container">JAL</span> <span className="text-onSurface">TRADE</span>
@@ -49,7 +49,7 @@ export default function LoginPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface-higher px-3 py-2.5 text-onSurface outline-none focus:border-primary-container/60"
+            className="min-h-11 w-full rounded-md border border-border bg-surface-higher px-3 py-2.5 text-onSurface outline-none focus:border-primary-container/60"
           />
         </label>
         <label className="mb-5 block text-sm">
@@ -59,7 +59,7 @@ export default function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface-higher px-3 py-2.5 text-onSurface outline-none focus:border-primary-container/60"
+            className="min-h-11 w-full rounded-md border border-border bg-surface-higher px-3 py-2.5 text-onSurface outline-none focus:border-primary-container/60"
           />
         </label>
 
@@ -73,7 +73,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-primary-container py-2.5 text-sm font-semibold text-primary-onContainer transition hover:brightness-110 disabled:opacity-50"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-primary-container py-2.5 text-sm font-semibold text-primary-onContainer transition hover:brightness-110 disabled:opacity-50"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
           {isPreviewMode ? 'Accéder à l’aperçu' : 'Se connecter'}

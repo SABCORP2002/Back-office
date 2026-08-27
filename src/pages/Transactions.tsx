@@ -6,10 +6,12 @@ import { Badge } from '../components/Badge';
 import { transactionsApi, providersApi, countriesApi, type Transaction, type TxStatus } from '../lib/api';
 import { TX_STATUS_LABELS, TX_STATUS_TONE } from '../lib/statusLabels';
 import { formatAmount, formatDateTime } from '../lib/format';
+import { hasPermission } from '../lib/auth';
 
 const PAGE_SIZE = 20;
 
 export default function TransactionsPage() {
+  const canExport = hasPermission('EXPORT_TRANSACTIONS');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [country, setCountry] = useState('');
@@ -35,8 +37,8 @@ export default function TransactionsPage() {
   }, [load]);
 
   useEffect(() => {
-    providersApi.list().then((rows) => setProviderOptions(rows.map((p) => ({ id: p.id, name: p.name }))));
-    countriesApi.list().then((rows) => setCountryOptions(rows.map((c) => c.name)));
+    if (hasPermission('VIEW_PROVIDERS')) providersApi.list().then((rows) => setProviderOptions(rows.map((p) => ({ id: p.id, name: p.name }))));
+    if (hasPermission('VIEW_COUNTRIES_PAYMENTS')) countriesApi.list().then((rows) => setCountryOptions(rows.map((c) => c.name)));
   }, []);
 
   const filtered = (transactions ?? []).filter((t) => {
@@ -56,7 +58,7 @@ export default function TransactionsPage() {
         icon={Repeat}
         title="Transactions"
         subtitle="Gérez et suivez toutes les transactions d'achat et de vente."
-        action={<Button variant="primary" icon={Download} onClick={() => transactionsApi.export({ status: status || undefined, providerId: providerId || undefined, country: country || undefined })}>Exporter</Button>}
+        action={canExport ? <Button variant="primary" icon={Download} onClick={() => transactionsApi.export({ status: status || undefined, providerId: providerId || undefined, country: country || undefined })}>Exporter</Button> : undefined}
       />
 
       {error && (
@@ -66,7 +68,7 @@ export default function TransactionsPage() {
       )}
 
       <Card className="mb-4">
-        <div className="mb-3 grid grid-cols-5 gap-3">
+        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <div>
             <div className="mb-1 text-xs text-onSurfaceVariant">Type</div>
             <Select value={type} onChange={(v) => { setType(v); setPage(1); }} options={['achat', 'vente']} placeholder="Tous" className="w-full" />

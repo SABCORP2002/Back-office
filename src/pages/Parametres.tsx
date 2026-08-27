@@ -56,12 +56,12 @@ export default function ParametresPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="grid grid-cols-[1fr_380px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
           <Card>
             <CardTitle>Informations générales</CardTitle>
             {settings && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Nom de la plateforme" value={draft.platformName ?? ''} onChange={(v) => setDraft({ ...draft, platformName: v })} />
                 <Field label="Slogan" value={draft.slogan ?? ''} onChange={(v) => setDraft({ ...draft, slogan: v })} />
                 <Field label="Email de contact" value={draft.contactEmail ?? ''} onChange={(v) => setDraft({ ...draft, contactEmail: v })} />

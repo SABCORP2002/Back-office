@@ -5,6 +5,7 @@ import { Card, StatCard, Button, Select, SearchInput, Pagination, Avatar, Tabs }
 import { Badge } from '../components/Badge';
 import { usersApi, type User } from '../lib/api';
 import { formatAmount, formatDateTime, timeAgo } from '../lib/format';
+import { hasPermission } from '../lib/auth';
 
 const PAGE_SIZE = 10;
 const KYC_LABELS: Record<User['kycStatus'], string> = { NOT_STARTED: 'Non démarré', PENDING: 'En attente', APPROVED: 'Approuvé', REJECTED: 'Rejeté' };
@@ -14,6 +15,7 @@ type Detail = Awaited<ReturnType<typeof usersApi.detail>>;
 
 /** No `name`/`language`/`timezone` field exists on the real User model (TDS §1 never modeled them) — displayed by phone/email instead, not fabricated. */
 export default function UtilisateursPage() {
+  const canManageUsers = hasPermission('MANAGE_USERS');
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState('');
   const [kyc, setKyc] = useState('');
@@ -72,17 +74,17 @@ export default function UtilisateursPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard iconTone="info" label="Utilisateurs totaux" value={stats ? stats.total.toLocaleString('fr-FR') : '—'} />
         <StatCard iconTone="success" label="Nouveaux ce mois" value={stats?.newThisMonth ?? '—'} />
         <StatCard iconTone="purple" label="Utilisateurs actifs" value={stats ? stats.active.toLocaleString('fr-FR') : '—'} />
         <StatCard iconTone="error" label="Suspendus" value={stats?.suspended ?? '—'} />
       </div>
 
-      <div className="grid grid-cols-[1fr_360px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <Card className="mb-4">
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Téléphone ou email..." />
               <Select value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[{ value: 'ACTIVE', label: 'Actif' }, { value: 'SUSPENDED', label: 'Suspendu' }]} placeholder="Tous" />
               <Select value={kyc} onChange={(v) => { setKyc(v); setPage(1); }} options={Object.entries(KYC_LABELS).map(([value, label]) => ({ value, label }))} placeholder="Tous (KYC)" />
@@ -173,7 +175,7 @@ export default function UtilisateursPage() {
 
                 <div className="mt-4 border-t border-border pt-4">
                   <div className="mb-3 text-xs font-bold tracking-wide text-primary">RÉSUMÉ</div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div><div className="text-xs text-onSurfaceVariant">Transactions</div><div className="text-lg font-bold">{detail.summary.transactionCount}</div></div>
                     <div><div className="text-xs text-onSurfaceVariant">Volume total</div><div className="text-lg font-bold">{formatAmount(detail.summary.totalVolume)}</div></div>
                     <div><div className="text-xs text-onSurfaceVariant">Achats / Ventes</div><div className="text-sm font-medium">{detail.summary.achatCount} / {detail.summary.venteCount}</div></div>
@@ -181,7 +183,7 @@ export default function UtilisateursPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                {canManageUsers && <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {detail.status === 'ACTIVE' ? (
                     <Button variant="danger" className="justify-center text-xs" onClick={() => withJustification((j) => usersApi.suspend(detail.id, j))}>Suspendre le compte</Button>
                   ) : (
@@ -197,7 +199,7 @@ export default function UtilisateursPage() {
                   >
                     Ajouter une note
                   </Button>
-                </div>
+                </div>}
               </div>
             )}
             {tab === 'transactions' && (

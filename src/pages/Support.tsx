@@ -5,6 +5,7 @@ import { Card, StatCard, Button, SearchInput, Avatar, Tabs } from '../components
 import { Badge } from '../components/Badge';
 import { supportApi, type SupportTicket } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { hasPermission } from '../lib/auth';
 
 const STATUS_LABELS: Record<SupportTicket['status'], string> = { OPEN: 'Nouveau', IN_PROGRESS: 'En cours', RESOLVED: 'Résolu', ESCALATED: 'Escaladé' };
 const STATUS_TONE: Record<SupportTicket['status'], 'warning' | 'info' | 'success' | 'error'> = { OPEN: 'warning', IN_PROGRESS: 'info', RESOLVED: 'success', ESCALATED: 'error' };
@@ -16,6 +17,7 @@ const STATUS_TONE: Record<SupportTicket['status'], 'warning' | 'info' | 'success
  * internal notes rather than a fabricated chat thread.
  */
 export default function SupportPage() {
+  const canManage = hasPermission('MANAGE_SUPPORT');
   const [tab, setTab] = useState<'all' | SupportTicket['status']>('all');
   const [search, setSearch] = useState('');
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -80,7 +82,7 @@ export default function SupportPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-5 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Nouveaux" value={stats.open} />
         <StatCard iconTone="info" label="En cours" value={stats.inProgress} />
         <StatCard iconTone="error" label="Escaladés" value={stats.escalated} />
@@ -88,7 +90,7 @@ export default function SupportPage() {
         <StatCard label="Total" value={stats.total} />
       </div>
 
-      <div className="grid grid-cols-[1fr_400px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div>
           <div className="mb-4">
             <Tabs
@@ -179,7 +181,7 @@ export default function SupportPage() {
               {(!detail.notes || detail.notes.length === 0) && <div className="text-xs text-onSurfaceVariant">Aucune note.</div>}
             </div>
 
-            <div className="mb-3 flex items-center gap-2 rounded-md border border-border bg-surface-higher px-3 py-2">
+            {canManage && <div className="mb-3 flex items-center gap-2 rounded-md border border-border bg-surface-higher px-3 py-2">
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -187,12 +189,12 @@ export default function SupportPage() {
                 className="flex-1 bg-transparent text-xs outline-none placeholder:text-outline"
               />
               <Button variant="primary" icon={Plus} className="px-3 py-1.5 text-xs" onClick={addNote}>Ajouter</Button>
-            </div>
+            </div>}
 
-            <div className="grid grid-cols-2 gap-2">
+            {canManage && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button variant="primary" className="justify-center text-xs" onClick={() => setStatus('RESOLVED')}>Marquer résolu</Button>
               <Button className="justify-center text-xs" onClick={() => setStatus('ESCALATED')}>Escalader</Button>
-            </div>
+            </div>}
           </Card>
         )}
       </div>

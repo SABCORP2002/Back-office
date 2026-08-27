@@ -107,7 +107,7 @@ export default function TauxMargesPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-5 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Pays configurés" value={stats.activeCountries} />
         <StatCard iconTone="warning" label="Cryptos configurées" value={stats.activeCryptos} />
         <StatCard iconTone="purple" label="Règles de marges" value={stats.total} />
@@ -116,14 +116,14 @@ export default function TauxMargesPage() {
       </div>
 
       <Card className="mb-4">
-        <div className="grid grid-cols-3 gap-3 items-end">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
           <Select value={country} onChange={setCountry} options={countries} placeholder="Pays" />
           <Select value={crypto} onChange={setCrypto} options={['USDT', 'BTC', 'ETH', 'USDC']} />
           <Button variant="ghost" icon={RotateCcw} onClick={() => { setCountry(countries[0] ?? ''); setCrypto('USDT'); }}>Réinitialiser</Button>
         </div>
       </Card>
 
-      <div className="grid grid-cols-[1fr_340px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <Card>
             <div className="mb-3 flex items-center justify-between">
@@ -131,7 +131,7 @@ export default function TauxMargesPage() {
                 <span className="font-semibold">{crypto} / {fiatCurrency} — {country}</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-md bg-success/5 border border-success/20 p-3">
                 <div className="mb-2 flex items-center gap-2 text-success font-semibold text-sm"><ArrowDown size={14} /> ACHAT</div>
                 {breakdown.buy ? (
@@ -225,7 +225,7 @@ function DirectionFields({ title, form, onChange }: { title: string; form: Direc
   return (
     <div className="mb-4">
       <div className="mb-2 text-xs font-semibold text-onSurfaceVariant">{title}</div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <MiniInput label="Marge (%)" value={form.marginPct} onChange={(v) => onChange({ ...form, marginPct: v })} />
         <MiniInput label="Frais fixe" value={form.feeFixed} onChange={(v) => onChange({ ...form, feeFixed: v })} />
         <MiniInput label="Marge min (%)" value={form.marginMinPct} onChange={(v) => onChange({ ...form, marginMinPct: v })} />

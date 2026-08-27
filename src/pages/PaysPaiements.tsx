@@ -61,14 +61,14 @@ export default function PaysPaiementsPage() {
 
       {error && <div className="mb-3 rounded-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">Impossible de contacter le serveur backend.</div>}
 
-      <div className="mb-4 grid grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard iconTone="info" label="Pays activés" value={stats?.activeCountries ?? '—'} suffix={stats ? `sur ${stats.totalCountries} pays` : ''} />
         <StatCard iconTone="success" label="Moyens de paiement actifs" value={stats?.activePaymentMethods ?? '—'} suffix={stats ? `sur ${stats.totalPaymentMethods} moyens` : ''} />
         <StatCard label="Volume aujourd'hui" value={globalStats ? formatAmount(globalStats.volumeToday) : '—'} suffix="XAF" />
         <StatCard iconTone="purple" label="Transactions aujourd'hui" value={globalStats?.transactionsToday ?? '—'} />
       </div>
 
-      <div className="grid grid-cols-[1fr_420px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Card padded={false}>
           <div className="p-5 pb-3">
             <CardTitle>Liste des pays</CardTitle>
@@ -109,7 +109,7 @@ export default function PaysPaiementsPage() {
               <span className="flex items-center gap-2 font-semibold">{selected.name} <Badge tone={STATUS_TONE[selected.status]} dot>{STATUS_LABELS[selected.status]}</Badge></span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div className="space-y-2">
                 <Row label="Devise" value={selected.currency} />
                 <Row label="Code" value={selected.code} />
@@ -127,7 +127,7 @@ export default function PaysPaiementsPage() {
 
             <div className="mt-4 border-t border-border pt-4">
               <div className="mb-2 text-xs font-bold tracking-wide text-onSurfaceVariant">RÉSUMÉ DU PAYS (toutes transactions)</div>
-              <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-2">
                 <MiniStat label="Transactions" value={countrySummary ? String(countrySummary.txCount) : '—'} />
                 <MiniStat label="Volume" value={countrySummary ? formatAmount(countrySummary.volume) : '—'} />
               </div>
