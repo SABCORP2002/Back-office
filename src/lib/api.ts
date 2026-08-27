@@ -4,7 +4,14 @@ import { clearSession, getSession, setSession, type AdminPermission } from './au
 // same HTTPS domain at `/api`. A separately hosted backoffice can still set
 // VITE_API_BASE_URL at build time (for example on Vercel).
 const API_BASE = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
-export const isPreviewMode = import.meta.env.VITE_PREVIEW_MODE?.trim() === 'true';
+const previewModeSetting = import.meta.env.VITE_PREVIEW_MODE?.trim().toLowerCase();
+
+// A static deployment (GitHub Pages, Vercel or a client demo) has no API URL.
+// Treat it as the safe, read-only visual preview by default. Connected builds
+// explicitly provide VITE_API_BASE_URL (Docker uses /api), while a caller can
+// always force either behavior with VITE_PREVIEW_MODE=true|false.
+export const isPreviewMode = previewModeSetting === 'true'
+  || (previewModeSetting !== 'false' && !import.meta.env.VITE_API_BASE_URL?.trim());
 
 const PREVIEW_ALL_PERMISSIONS: AdminPermission[] = [
   'VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'INTERVENE_TRANSACTIONS', 'FORCE_TRANSACTION_PROVIDER', 'ISSUE_REFUND',
