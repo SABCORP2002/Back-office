@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Gift, HandCoins, ShieldCheck, TicketPercent, UsersRound } from 'lucide-react';
+import { CheckCircle2, Gift, HandCoins, ShieldCheck, TicketPercent, UserRoundCheck, UsersRound } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Button, Card, CardTitle, StatCard, Toggle } from '../components/ui';
 import { PageHeader, Screen } from '../layout/Screen';
-import { growthApi, type GrowthReferral, type GrowthReward, type PromoCampaign, type ReferralProgramConfig } from '../lib/api';
+import { growthApi, type AmbassadorApplication, type AmbassadorProgramConfig, type GrowthReferral, type GrowthReward, type PromoCampaign, type ReferralProgramConfig } from '../lib/api';
 import { hasPermission } from '../lib/auth';
 import { formatAmount, formatDateTime } from '../lib/format';
 
@@ -40,14 +40,51 @@ function draftFrom(config: ReferralProgramConfig | null): ReferralDraft {
   };
 }
 
+type AmbassadorDraft = {
+  enabled: boolean;
+  promoBenefitValue: string;
+  promoMinimumFiatAmount: string;
+  promoMaximumRedemptions: string;
+  promoNewUsersOnly: boolean;
+  promoFirstCompletedTransaction: boolean;
+  promoDurationDays: string;
+};
+
+const emptyAmbassadorDraft: AmbassadorDraft = {
+  enabled: false,
+  promoBenefitValue: '0',
+  promoMinimumFiatAmount: '',
+  promoMaximumRedemptions: '',
+  promoNewUsersOnly: false,
+  promoFirstCompletedTransaction: true,
+  promoDurationDays: '30',
+};
+
+function ambassadorDraftFrom(config: AmbassadorProgramConfig | null): AmbassadorDraft {
+  if (!config) return emptyAmbassadorDraft;
+  return {
+    enabled: config.enabled,
+    promoBenefitValue: config.promoBenefitValue,
+    promoMinimumFiatAmount: config.promoMinimumFiatAmount ?? '',
+    promoMaximumRedemptions: config.promoMaximumRedemptions?.toString() ?? '',
+    promoNewUsersOnly: config.promoNewUsersOnly,
+    promoFirstCompletedTransaction: config.promoFirstCompletedTransaction,
+    promoDurationDays: config.promoDurationDays.toString(),
+  };
+}
+
 /** Non-custodial referral and promo configuration. */
 export default function GrowthProgramsPage() {
   const canManage = hasPermission('MANAGE_GROWTH_PROGRAMS');
   const canSettle = hasPermission('SETTLE_GROWTH_REWARDS');
+  const canManageAmbassadors = hasPermission('MANAGE_AMBASSADOR_PROGRAM');
+  const canReviewAmbassadors = hasPermission('REVIEW_AMBASSADOR_APPLICATIONS');
   const [draft, setDraft] = useState<ReferralDraft>(emptyDraft);
+  const [ambassadorDraft, setAmbassadorDraft] = useState<AmbassadorDraft>(emptyAmbassadorDraft);
   const [promotions, setPromotions] = useState<PromoCampaign[]>([]);
   const [referrals, setReferrals] = useState<GrowthReferral[]>([]);
   const [rewards, setRewards] = useState<GrowthReward[]>([]);
+  const [ambassadorApplications, setAmbassadorApplications] = useState<AmbassadorApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,13 +93,15 @@ export default function GrowthProgramsPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [config, campaignRows, referralRows, rewardRows] = await Promise.all([
-        growthApi.referralProgram(), growthApi.promotions(), growthApi.referrals(), growthApi.rewards(),
+      const [config, ambassadorConfig, campaignRows, referralRows, rewardRows, ambassadorRows] = await Promise.all([
+        growthApi.referralProgram(), growthApi.ambassadorProgram(), growthApi.promotions(), growthApi.referrals(), growthApi.rewards(), growthApi.ambassadorApplications(),
       ]);
       setDraft(draftFrom(config));
+      setAmbassadorDraft(ambassadorDraftFrom(ambassadorConfig));
       setPromotions(campaignRows);
       setReferrals(referralRows);
       setRewards(rewardRows);
+      setAmbassadorApplications(ambassadorRows);
     } catch {
       setError('Impossible de charger les programmes de parrainage et promotion.');
     } finally {
@@ -77,7 +116,8 @@ export default function GrowthProgramsPage() {
     qualified: referrals.filter((row) => row.status === 'QUALIFIED').length,
     pendingRewards: rewards.filter((row) => row.status === 'PENDING' || row.status === 'APPROVED').length,
     activePromotions: promotions.filter((row) => row.active).length,
-  }), [referrals, rewards, promotions]);
+    pendingAmbassadors: ambassadorApplications.filter((row) => row.status === 'PENDING').length,
+  }), [referrals, rewards, promotions, ambassadorApplications]);
 
   async function saveProgram() {
     setSaving(true); setError(null); setNotice(null);
@@ -120,6 +160,42 @@ export default function GrowthProgramsPage() {
     catch { setError('Impossible d’enregistrer le règlement.'); }
   }
 
+  async function saveAmbassadorProgram() {
+    setSaving(true); setError(null); setNotice(null);
+    try {
+      const saved = await growthApi.updateAmbassadorProgram({
+        enabled: ambassadorDraft.enabled,
+        promoBenefitValue: Number(ambassadorDraft.promoBenefitValue || 0),
+        promoMinimumFiatAmount: ambassadorDraft.promoMinimumFiatAmount ? Number(ambassadorDraft.promoMinimumFiatAmount) : undefined,
+        promoMaximumRedemptions: ambassadorDraft.promoMaximumRedemptions ? Number(ambassadorDraft.promoMaximumRedemptions) : undefined,
+        promoNewUsersOnly: ambassadorDraft.promoNewUsersOnly,
+        promoFirstCompletedTransaction: ambassadorDraft.promoFirstCompletedTransaction,
+        promoDurationDays: Number(ambassadorDraft.promoDurationDays || 30),
+      });
+      setAmbassadorDraft(ambassadorDraftFrom(saved));
+      setNotice('Programme Ambassadeur enregistré. Les codes restent contrôlés par cette politique.');
+    } catch { setError('Impossible d’enregistrer le programme Ambassadeur. Vérifiez vos droits et les limites.'); }
+    finally { setSaving(false); }
+  }
+
+  async function approveAmbassador(application: AmbassadorApplication) {
+    try {
+      await growthApi.approveAmbassadorApplication(application.id);
+      await load();
+      setNotice(`${application.displayName} peut maintenant choisir son code promo.`);
+    } catch { setError('Impossible d’approuver cette candidature Ambassadeur.'); }
+  }
+
+  async function rejectAmbassador(application: AmbassadorApplication) {
+    const reason = window.prompt('Motif du refus ou informations à compléter');
+    if (!reason?.trim()) return;
+    try {
+      await growthApi.rejectAmbassadorApplication(application.id, reason.trim());
+      await load();
+      setNotice('Candidature refusée avec un motif visible par le client.');
+    } catch { setError('Impossible de refuser cette candidature Ambassadeur.'); }
+  }
+
   return (
     <Screen>
       <PageHeader icon={Gift} title="Parrainage & Codes promo" subtitle="Configurez les avantages, contrôlez les attributions et conservez une preuve pour tout règlement externe." />
@@ -132,6 +208,8 @@ export default function GrowthProgramsPage() {
         <StatCard icon={HandCoins} iconTone="warning" label="Récompenses à régler" value={stats.pendingRewards} />
         <StatCard icon={TicketPercent} iconTone="purple" label="Codes promo actifs" value={stats.activePromotions} />
       </div>
+
+      {stats.pendingAmbassadors > 0 && <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">{stats.pendingAmbassadors} candidature{stats.pendingAmbassadors > 1 ? 's' : ''} Ambassadeur à examiner.</div>}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
@@ -158,6 +236,30 @@ export default function GrowthProgramsPage() {
             <InfoRow icon={TicketPercent} title="Code promo vérifié côté serveur" detail="Pays, actif, période, montant minimal, plafond d’utilisations et première transaction sont contrôlés avant le devis." />
             <InfoRow icon={HandCoins} title="Aucun solde custodial" detail="Le back-office ne fait qu’approuver et archiver la référence d’un règlement externe validé." />
           </div>
+        </Card>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+        <Card>
+          <CardTitle action={<Badge tone={ambassadorDraft.enabled ? 'success' : 'neutral'}>{ambassadorDraft.enabled ? 'Programme actif' : 'Programme désactivé'}</Badge>}>Programme Ambassadeur</CardTitle>
+          <p className="mb-4 text-sm leading-5 text-onSurfaceVariant">Les ambassadeurs peuvent soumettre leurs communautés. Une fois approuvés, ils choisissent seulement le texte du code ; cette politique fixe la remise et les protections commerciales.</p>
+          <div className="space-y-3">
+            <ToggleRow label="Accepter les candidatures" description="Autorise le formulaire client Ambassadeur." checked={ambassadorDraft.enabled} onChange={(enabled) => setAmbassadorDraft({ ...ambassadorDraft, enabled })} disabled={!canManageAmbassadors} />
+            <ToggleRow label="Nouveaux utilisateurs uniquement" description="Le code Ambassadeur n’est valable que pour le premier parcours du client." checked={ambassadorDraft.promoNewUsersOnly} onChange={(promoNewUsersOnly) => setAmbassadorDraft({ ...ambassadorDraft, promoNewUsersOnly })} disabled={!canManageAmbassadors} />
+            <ToggleRow label="Première transaction terminée" description="Évite que la même remise soit employée après un premier échange terminé." checked={ambassadorDraft.promoFirstCompletedTransaction} onChange={(promoFirstCompletedTransaction) => setAmbassadorDraft({ ...ambassadorDraft, promoFirstCompletedTransaction })} disabled={!canManageAmbassadors} />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Remise de marge (%)" value={ambassadorDraft.promoBenefitValue} type="number" disabled={!canManageAmbassadors} onChange={(promoBenefitValue) => setAmbassadorDraft({ ...ambassadorDraft, promoBenefitValue })} />
+            <Field label="Validité du code (jours)" value={ambassadorDraft.promoDurationDays} type="number" disabled={!canManageAmbassadors} onChange={(promoDurationDays) => setAmbassadorDraft({ ...ambassadorDraft, promoDurationDays })} />
+            <Field label="Montant minimum (fiat, optionnel)" value={ambassadorDraft.promoMinimumFiatAmount} type="number" disabled={!canManageAmbassadors} onChange={(promoMinimumFiatAmount) => setAmbassadorDraft({ ...ambassadorDraft, promoMinimumFiatAmount })} />
+            <Field label="Utilisations maximum (optionnel)" value={ambassadorDraft.promoMaximumRedemptions} type="number" disabled={!canManageAmbassadors} onChange={(promoMaximumRedemptions) => setAmbassadorDraft({ ...ambassadorDraft, promoMaximumRedemptions })} />
+          </div>
+          {canManageAmbassadors && <Button variant="primary" className="mt-5 w-full justify-center" onClick={saveAmbassadorProgram} disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer le programme Ambassadeur'}</Button>}
+        </Card>
+
+        <Card padded={false}>
+          <div className="p-4 pb-2 sm:p-5 sm:pb-3"><CardTitle action={<Badge tone="info">Revue manuelle</Badge>}>Candidatures Ambassadeur</CardTitle><p className="-mt-3 text-xs leading-5 text-onSurfaceVariant">Les liens, métriques et la décision sont conservés pour l’équipe autorisée. L’approbation débloque le choix du code, pas ses conditions commerciales.</p></div>
+          <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-xs text-onSurfaceVariant"><th className="px-4 py-3 font-medium">Candidat</th><th className="px-4 py-3 font-medium">Communauté</th><th className="px-4 py-3 font-medium">Code</th><th className="px-4 py-3 font-medium">Statut</th><th className="px-4 py-3 font-medium"></th></tr></thead><tbody>{ambassadorApplications.slice(0, 12).map((row) => <tr key={row.id} className="border-b border-border/60 align-top"><td className="px-4 py-3"><div className="font-medium">{row.displayName}</div><div className="mt-1 text-xs text-onSurfaceVariant">{identity(row.user)} · {row.user.country}</div><div className="mt-1 text-xs text-onSurfaceVariant">KYC : {row.user.kycStatus}</div></td><td className="px-4 py-3 text-xs text-onSurfaceVariant"><div>{row.audienceSize?.toLocaleString() ?? '—'} abonnés · {row.monthlyReach?.toLocaleString() ?? '—'} portée</div><div className="mt-1 max-w-[210px] break-all">{[row.whatsappUrl, row.telegramUrl, ...row.otherCommunityLinks].filter(Boolean).join(' · ') || 'Aucun lien'}</div></td><td className="whitespace-nowrap px-4 py-3 font-mono text-primary">{row.promoCampaign?.code ?? 'Après approbation'}<div className="mt-1 font-sans text-xs text-onSurfaceVariant">{row.promoCampaign ? `${row.promoCampaign.redemptionsReserved} utilisation(s)` : ''}</div></td><td className="px-4 py-3"><Badge tone={row.status === 'APPROVED' ? 'success' : row.status === 'PENDING' ? 'warning' : 'error'}>{labelAmbassador(row.status)}</Badge>{row.rejectionReason && <div className="mt-1 max-w-[180px] text-xs text-error">{row.rejectionReason}</div>}</td><td className="whitespace-nowrap px-4 py-3 text-right">{row.status === 'PENDING' && canReviewAmbassadors && <div className="flex justify-end gap-2"><Button className="min-h-8 px-2 py-1 text-xs" onClick={() => approveAmbassador(row)}>Approuver</Button><Button variant="danger" className="min-h-8 px-2 py-1 text-xs" onClick={() => rejectAmbassador(row)}>Refuser</Button></div>}</td></tr>)}{!loading && ambassadorApplications.length === 0 && <tr><td colSpan={5} className="px-4 py-7 text-center text-onSurfaceVariant"><UserRoundCheck size={18} className="mr-2 inline" />Aucune candidature Ambassadeur.</td></tr>}</tbody></table></div>
         </Card>
       </div>
 
@@ -190,3 +292,4 @@ function identity(user: { email: string | null; phone: string | null }) { return
 function labelReferral(status: GrowthReferral['status']) { return status === 'QUALIFIED' ? 'Qualifié' : status === 'PENDING' ? 'En attente' : 'Écarté'; }
 function labelReward(status: GrowthReward['status']) { return { PENDING: 'À approuver', APPROVED: 'À régler', SETTLED: 'Réglée', CANCELLED: 'Annulée' }[status]; }
 function toneReward(status: GrowthReward['status']) { return status === 'SETTLED' ? 'success' : status === 'CANCELLED' ? 'error' : status === 'APPROVED' ? 'warning' : 'info'; }
+function labelAmbassador(status: AmbassadorApplication['status']) { return status === 'APPROVED' ? 'Approuvée' : status === 'PENDING' ? 'À examiner' : 'Refusée'; }

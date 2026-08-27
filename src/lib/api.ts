@@ -17,7 +17,7 @@ const PREVIEW_ALL_PERMISSIONS: AdminPermission[] = [
   'VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'INTERVENE_TRANSACTIONS', 'FORCE_TRANSACTION_PROVIDER', 'ISSUE_REFUND',
   'VIEW_USERS', 'MANAGE_USERS', 'VIEW_KYC', 'REVIEW_KYC', 'VIEW_SUPPORT', 'MANAGE_SUPPORT',
   'VIEW_PROVIDERS', 'MANAGE_PROVIDERS', 'VIEW_PRICING', 'MANAGE_PRICING', 'VIEW_COUNTRIES_PAYMENTS', 'MANAGE_COUNTRIES_PAYMENTS',
-  'VIEW_ROUTING', 'MANAGE_ROUTING', 'VIEW_GROWTH_PROGRAMS', 'MANAGE_GROWTH_PROGRAMS', 'SETTLE_GROWTH_REWARDS', 'VIEW_FINANCIAL_REPORTS', 'EXPORT_FINANCIAL_REPORTS', 'VIEW_RECONCILIATION', 'VIEW_PLATFORM_SETTINGS',
+  'VIEW_ROUTING', 'MANAGE_ROUTING', 'VIEW_GROWTH_PROGRAMS', 'MANAGE_GROWTH_PROGRAMS', 'SETTLE_GROWTH_REWARDS', 'REVIEW_AMBASSADOR_APPLICATIONS', 'MANAGE_AMBASSADOR_PROGRAM', 'VIEW_FINANCIAL_REPORTS', 'EXPORT_FINANCIAL_REPORTS', 'VIEW_RECONCILIATION', 'VIEW_PLATFORM_SETTINGS',
   'MANAGE_PLATFORM_SETTINGS', 'VIEW_AUDIT_LOGS', 'VIEW_ADMIN_USERS', 'MANAGE_ADMIN_USERS',
 ];
 
@@ -565,6 +565,7 @@ export interface PaymentProviderRow {
   balanceStatus: 'AVAILABLE' | 'UNAVAILABLE';
   balanceUpdatedAt: string | null;
   averageTimeMs: number | null;
+  healthStatus: 'UP' | 'DEGRADED' | 'DOWN' | null;
   minimumPayment: number | null;
   maximumPayment: number | null;
   hasApiKeyConfigured: boolean;
@@ -668,6 +669,8 @@ export const adminUsersApi = {
   update: (id: string, input: { role?: BackofficeAdmin['role']; displayName?: string; permissions?: AdminPermission[] }) => patch<BackofficeAdmin>(`/admin/admin-users/${id}`, input),
   setActive: (id: string, isActive: boolean) => patch<BackofficeAdmin>(`/admin/admin-users/${id}/status`, { isActive }),
   resetPassword: (id: string, temporaryPassword: string) => post<{ id: string; passwordReset: boolean }>(`/admin/admin-users/${id}/password-reset`, { temporaryPassword }),
+  /** Authoritative role → selectable-permissions map, straight from the backend's PERMISSION_MATRIX — never hand-copied. */
+  permissionMatrix: () => get<Record<BackofficeAdmin['role'], AdminPermission[]>>('/admin/admin-users/permission-matrix'),
 };
 
 // ---------------------------------------------------------------------------
@@ -904,7 +907,39 @@ export interface PromoCampaign {
   cryptos: string[];
   startsAt: string;
   endsAt: string;
+  ambassadorApplicationId?: string | null;
   _count?: { redemptions: number };
+}
+
+export interface AmbassadorProgramConfig {
+  id: string;
+  enabled: boolean;
+  promoBenefitValue: string;
+  promoMinimumFiatAmount: string | null;
+  promoMaximumRedemptions: number | null;
+  promoNewUsersOnly: boolean;
+  promoFirstCompletedTransaction: boolean;
+  promoDurationDays: number;
+  updatedAt: string;
+}
+
+export interface AmbassadorApplication {
+  id: string;
+  displayName: string;
+  whatsappUrl: string | null;
+  telegramUrl: string | null;
+  otherCommunityLinks: string[];
+  audienceSize: number | null;
+  monthlyReach: number | null;
+  engagementRate: string | null;
+  motivation: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+  user: { id: string; email: string | null; phone: string | null; country: string; kycStatus: string };
+  promoCampaign: { id: string; code: string; active: boolean; redemptionsReserved: number; endsAt: string } | null;
 }
 
 export interface GrowthReferral {
@@ -931,6 +966,12 @@ export const growthApi = {
   referralProgram: () => get<ReferralProgramConfig | null>('/admin/growth/referral-program'),
   updateReferralProgram: (input: { enabled: boolean; minimumFiatAmount?: number; rewardType: ReferralProgramConfig['rewardType']; rewardValue: number; rewardCurrency?: string; requiresKycApproval: boolean; firstCompletedTransaction: boolean }) =>
     put<ReferralProgramConfig>('/admin/growth/referral-program', input),
+  ambassadorProgram: () => get<AmbassadorProgramConfig | null>('/admin/growth/ambassador-program'),
+  updateAmbassadorProgram: (input: { enabled: boolean; promoBenefitValue: number; promoMinimumFiatAmount?: number; promoMaximumRedemptions?: number; promoNewUsersOnly: boolean; promoFirstCompletedTransaction: boolean; promoDurationDays: number }) =>
+    put<AmbassadorProgramConfig>('/admin/growth/ambassador-program', input),
+  ambassadorApplications: () => get<AmbassadorApplication[]>('/admin/growth/ambassador-applications'),
+  approveAmbassadorApplication: (id: string) => post(`/admin/growth/ambassador-applications/${id}/approve`),
+  rejectAmbassadorApplication: (id: string, reason: string) => post(`/admin/growth/ambassador-applications/${id}/reject`, { reason }),
   referrals: () => get<GrowthReferral[]>('/admin/growth/referrals'),
   rewards: () => get<GrowthReward[]>('/admin/growth/rewards'),
   approveReward: (id: string) => post(`/admin/growth/rewards/${id}/approve`),

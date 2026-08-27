@@ -29,6 +29,8 @@ export type AdminPermission =
   | 'VIEW_GROWTH_PROGRAMS'
   | 'MANAGE_GROWTH_PROGRAMS'
   | 'SETTLE_GROWTH_REWARDS'
+  | 'REVIEW_AMBASSADOR_APPLICATIONS'
+  | 'MANAGE_AMBASSADOR_PROGRAM'
   | 'VIEW_FINANCIAL_REPORTS'
   | 'EXPORT_FINANCIAL_REPORTS'
   | 'VIEW_RECONCILIATION'
@@ -70,8 +72,14 @@ export function isAuthenticated(): boolean {
   return getSession() !== null;
 }
 
-/** Mirrors backend permission enforcement. The API remains the authority. */
+/**
+ * Mirrors backend permission enforcement. The API remains the authority.
+ * No role special-case here on purpose — permissionsFor(ADMIN_SYSTEM) on the
+ * backend already expands to every AdminAction, so `session.permissions` is
+ * the one source of truth; a second "role === ADMIN_SYSTEM" check here would
+ * silently drift from that if the backend's Super Admin policy ever changes.
+ */
 export function hasPermission(permission: AdminPermission): boolean {
   const session = getSession();
-  return !!session && (session.role === 'ADMIN_SYSTEM' || session.permissions?.includes(permission));
+  return !!session && !!session.permissions?.includes(permission);
 }

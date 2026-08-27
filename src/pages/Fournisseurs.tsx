@@ -281,7 +281,7 @@ export default function FournisseursPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-onSurfaceVariant">
-                {['Provider', 'Type', 'Balance', 'Average Time', 'Min / Max', 'Clé API', 'Actif', 'Actions'].map((h) => (
+                {['Provider', 'Type', 'Statut', 'Balance', 'Average Time', 'Min / Max', 'Clé API', 'Actif', 'Actions'].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -297,6 +297,17 @@ export default function FournisseursPage() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     <Badge tone={r.kind === 'crypto' ? 'primary' : 'info'}>{r.kind === 'crypto' ? 'Crypto' : 'Mobile Money'}</Badge>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    {r.healthStatus == null ? (
+                      <span className="text-xs text-onSurfaceVariant" title="Aucun healthCheck() n'existe pour les fournisseurs Mobile Money">
+                        Non surveillé
+                      </span>
+                    ) : (
+                      <Badge tone={r.healthStatus === 'UP' ? 'success' : r.healthStatus === 'DEGRADED' ? 'warning' : 'error'}>
+                        {r.healthStatus === 'UP' ? 'Opérationnel' : r.healthStatus === 'DEGRADED' ? 'Dégradé' : 'Indisponible'}
+                      </Badge>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5">
                     <div className="flex items-center gap-2">
@@ -337,7 +348,7 @@ export default function FournisseursPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-onSurfaceVariant">
+                  <td colSpan={9} className="px-3 py-6 text-center text-onSurfaceVariant">
                     Aucun fournisseur trouvé.
                   </td>
                 </tr>

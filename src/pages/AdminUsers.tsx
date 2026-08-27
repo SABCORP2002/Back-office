@@ -67,6 +67,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { value: 'VIEW_GROWTH_PROGRAMS', label: 'Voir parrainage et promos', detail: 'Consulter les codes, attributions et récompenses de parrainage.' },
       { value: 'MANAGE_GROWTH_PROGRAMS', label: 'Gérer parrainage et promos', detail: 'Configurer les campagnes et approuver les récompenses.' },
       { value: 'SETTLE_GROWTH_REWARDS', label: 'Régler les récompenses externes', detail: 'Enregistrer un règlement externe avec sa référence de preuve.' },
+      { value: 'REVIEW_AMBASSADOR_APPLICATIONS', label: 'Examiner les candidatures Ambassadeur', detail: 'Approuver ou refuser un profil Ambassadeur après examen de ses liens et métriques.' },
+      { value: 'MANAGE_AMBASSADOR_PROGRAM', label: 'Gérer le programme Ambassadeur', detail: 'Définir la remise, les limites et la durée applicables aux codes Ambassadeur.' },
     ],
   },
   {
@@ -81,29 +83,14 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ];
 
-const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) => group.permissions);
-
-const ROLE_ALLOWED: Record<BackofficeAdmin['role'], AdminPermission[]> = {
-  SUPPORT: ['VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'VIEW_USERS', 'VIEW_KYC', 'VIEW_SUPPORT', 'MANAGE_SUPPORT', 'VIEW_COUNTRIES_PAYMENTS'],
-  OPERATIONS: [
-    'VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'INTERVENE_TRANSACTIONS', 'FORCE_TRANSACTION_PROVIDER', 'ISSUE_REFUND',
-    'VIEW_USERS', 'MANAGE_USERS', 'VIEW_KYC', 'REVIEW_KYC', 'VIEW_SUPPORT', 'MANAGE_SUPPORT', 'VIEW_PROVIDERS', 'MANAGE_PROVIDERS',
-    'VIEW_PRICING', 'VIEW_COUNTRIES_PAYMENTS', 'VIEW_ROUTING', 'VIEW_RECONCILIATION', 'VIEW_AUDIT_LOGS', 'VIEW_GROWTH_PROGRAMS', 'MANAGE_GROWTH_PROGRAMS',
-  ],
-  FINANCE: ['VIEW_DASHBOARD', 'VIEW_TRANSACTIONS', 'EXPORT_TRANSACTIONS', 'ISSUE_REFUND', 'VIEW_USERS', 'VIEW_PROVIDERS', 'VIEW_PRICING', 'MANAGE_PRICING', 'VIEW_COUNTRIES_PAYMENTS', 'VIEW_GROWTH_PROGRAMS', 'MANAGE_GROWTH_PROGRAMS', 'SETTLE_GROWTH_REWARDS', 'VIEW_FINANCIAL_REPORTS', 'EXPORT_FINANCIAL_REPORTS', 'VIEW_RECONCILIATION'],
-  ADMIN_SYSTEM: ALL_PERMISSIONS.map((permission) => permission.value),
-};
-
-function allowedPermissions(role: BackofficeAdmin['role']): AdminPermission[] {
-  return ROLE_ALLOWED[role];
-}
+const EMPTY_ROLE_ALLOWED: Record<BackofficeAdmin['role'], AdminPermission[]> = { SUPPORT: [], OPERATIONS: [], FINANCE: [], ADMIN_SYSTEM: [] };
 
 function roleLabel(role: BackofficeAdmin['role']) {
   return ROLES.find((item) => item.value === role)?.label ?? role;
 }
 
 type FormState = { email: string; displayName: string; password: string; role: BackofficeAdmin['role']; permissions: AdminPermission[] };
-const newForm = (): FormState => ({ email: '', displayName: '', password: '', role: 'SUPPORT', permissions: allowedPermissions('SUPPORT') });
+const newForm = (): FormState => ({ email: '', displayName: '', password: '', role: 'SUPPORT', permissions: [] });
 
 export default function AdminUsersPage() {
   const canManage = hasPermission('MANAGE_ADMIN_USERS');
@@ -117,6 +104,9 @@ export default function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [roleAllowed, setRoleAllowed] = useState<Record<BackofficeAdmin['role'], AdminPermission[]>>(EMPTY_ROLE_ALLOWED);
+
+  const allowedPermissions = (role: BackofficeAdmin['role']) => roleAllowed[role];
 
   const selected = useMemo(() => admins.find((admin) => admin.id === selectedId) ?? null, [admins, selectedId]);
   const load = () => {
@@ -124,6 +114,16 @@ export default function AdminUsersPage() {
     adminUsersApi.list().then(setAdmins).catch(() => setError('Impossible de charger les administrateurs.')).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+
+  // The permission checklist's options come straight from the backend's
+  // PERMISSION_MATRIX (never hand-copied) — pre-fill the create form's
+  // default SUPPORT selection once it arrives.
+  useEffect(() => {
+    adminUsersApi.permissionMatrix().then((matrix) => {
+      setRoleAllowed(matrix);
+      setForm((current) => (current.role === 'SUPPORT' && current.permissions.length === 0 ? { ...current, permissions: matrix.SUPPORT } : current));
+    }).catch(() => setError('Impossible de charger la matrice des permissions.'));
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
