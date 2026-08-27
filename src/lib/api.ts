@@ -56,11 +56,59 @@ const previewTransactions = [
   { jalTransactionId: 'JAL-2026-H6K9-52A', userId: 'usr-ci-003', type: 'vente', status: 'terminee', crypto: 'BTC', network: 'BTC', fiatCurrency: 'XOF', fiatAmountExpected: '1250000', cryptoAmountExpected: '0.02', jalRateLocked: '62500000', jalMargin: '18750', destinationWalletAddress: null, depositAddressGenerated: 'bc1q9n6v2y4k8a3s7d5f0g1h2j3l4m5n6p7q8r9s0t', momoOperator: 'MTN Money', momoNumber: '+225 075 849 3021', providerId: 'provider-wa-momo', provider: { id: 'provider-wa-momo', name: 'PayDunya West Africa' }, user: previewUserIdentity('usr-ci-003'), createdAt: '2026-08-20T10:05:00.000Z', updatedAt: '2026-08-20T10:15:00.000Z', terminalAt: '2026-08-20T10:15:00.000Z' },
 ];
 
+// Preview-only growth-programme records. They make the static delivery useful
+// for demonstrations without contacting the real backend or storing anything
+// outside the current browser session.
+let previewAmbassadorProgram = {
+  id: 'ambassador-program-preview',
+  enabled: true,
+  promoBenefitValue: '12.50',
+  promoMinimumFiatAmount: '15000',
+  promoMaximumRedemptions: 250,
+  promoNewUsersOnly: true,
+  promoFirstCompletedTransaction: true,
+  promoDurationDays: 45,
+  updatedAt: '2026-08-26T15:40:00.000Z',
+};
+
+const previewAmbassadorApplications = [
+  {
+    id: 'amb-001', displayName: 'Miriam Tech & Finance', whatsappUrl: 'https://chat.whatsapp.com/demo-miriam', telegramUrl: 'https://t.me/miriamtradehub', otherCommunityLinks: ['https://www.instagram.com/miriamtradehub'],
+    audienceSize: 4200, monthlyReach: 18800, engagementRate: '8.4', motivation: 'Animer une communauté éducative autour de la crypto responsable.',
+    status: 'PENDING', reviewedBy: null, reviewedAt: null, rejectionReason: null, createdAt: '2026-08-26T11:15:00.000Z',
+    user: { id: 'usr-gh-006', email: 'ama.boateng@demo.jaltrade.local', phone: '+233 24 555 0182', country: 'Ghana', kycStatus: 'APPROVED' }, promoCampaign: null,
+  },
+  {
+    id: 'amb-002', displayName: 'Crypto Dakar Communauté', whatsappUrl: 'https://chat.whatsapp.com/demo-dakar', telegramUrl: 'https://t.me/cryptodakar', otherCommunityLinks: [],
+    audienceSize: 7800, monthlyReach: 35400, engagementRate: '11.2', motivation: 'Communauté sénégalaise axée sur la sécurité et les usages pratiques.',
+    status: 'APPROVED', reviewedBy: 'demo@jaltrade.com', reviewedAt: '2026-08-24T16:30:00.000Z', rejectionReason: null, createdAt: '2026-08-20T09:20:00.000Z',
+    user: { id: 'usr-sn-002', email: 'mamadou.ba@demo.jaltrade.local', phone: '+221 77 345 67 89', country: 'Sénégal', kycStatus: 'APPROVED' },
+    promoCampaign: { id: 'promo-004', code: 'DAKARJAL', active: true, redemptionsReserved: 47, endsAt: '2026-10-08T23:59:59.000Z' },
+  },
+  {
+    id: 'amb-003', displayName: 'Mali Web3 Famille', whatsappUrl: null, telegramUrl: 'https://t.me/maliweb3famille', otherCommunityLinks: ['https://www.facebook.com/maliweb3famille'],
+    audienceSize: 2100, monthlyReach: 7600, engagementRate: '5.1', motivation: 'Initiation aux actifs numériques en langue simple.',
+    status: 'REJECTED', reviewedBy: 'operations@jaltrade.com', reviewedAt: '2026-08-22T10:05:00.000Z', rejectionReason: 'Ajoutez un lien administrable ou une preuve d’audience récente.', createdAt: '2026-08-19T14:40:00.000Z',
+    user: { id: 'usr-ml-005', email: 'moussa.traore@demo.jaltrade.local', phone: '+223 76 54 32 10', country: 'Mali', kycStatus: 'APPROVED' }, promoCampaign: null,
+  },
+  {
+    id: 'amb-004', displayName: 'Kinshasa Crypto Réseau', whatsappUrl: 'https://chat.whatsapp.com/demo-kinshasa', telegramUrl: null, otherCommunityLinks: ['https://www.tiktok.com/@kinshasacrypto'],
+    audienceSize: 5600, monthlyReach: 22100, engagementRate: '7.7', motivation: 'Partage de contenus sur les paiements et la protection contre les arnaques.',
+    status: 'PENDING', reviewedBy: null, reviewedAt: null, rejectionReason: null, createdAt: '2026-08-25T18:10:00.000Z',
+    user: { id: 'usr-cd-004', email: 'joseph.kabeya@demo.jaltrade.local', phone: '+243 81 234 5678', country: 'RD Congo', kycStatus: 'APPROVED' }, promoCampaign: null,
+  },
+] as Array<Record<string, unknown>>;
+
+function previewBody(options: RequestInit): Record<string, unknown> {
+  if (!options.body || typeof options.body !== 'string') return {};
+  try { return JSON.parse(options.body) as Record<string, unknown>; } catch { return {}; }
+}
+
 /**
  * Visual-only payloads used by the client preview build. They never reach a
  * server and are deliberately kept separate from the production API flow.
  */
-function previewResponse<T>(path: string): T {
+function previewResponse<T>(path: string, options: RequestInit = {}): T {
   if (path.startsWith('/admin/dashboard/summary')) {
     return {
       range: { startDate: '2026-08-19', endDate: '2026-08-25' }, comparisonRange: { startDate: '2026-08-12', endDate: '2026-08-18' },
@@ -230,6 +278,35 @@ function previewResponse<T>(path: string): T {
       id: 'default', enabled: true, minimumFiatAmount: '10000', rewardType: 'PERCENT_OF_JAL_MARGIN', rewardValue: '10.00', rewardCurrency: null,
       requiresKycApproval: true, firstCompletedTransaction: true, updatedAt: '2026-08-26T09:20:00.000Z',
     } as T;
+  }
+  if (path === '/admin/growth/ambassador-program') {
+    if (options.method === 'PUT') {
+      previewAmbassadorProgram = { ...previewAmbassadorProgram, ...previewBody(options), updatedAt: new Date().toISOString() };
+    }
+    return previewAmbassadorProgram as T;
+  }
+  if (path === '/admin/growth/ambassador-applications') return previewAmbassadorApplications as T;
+  if (path.startsWith('/admin/growth/ambassador-applications/')) {
+    const [, , , , id, action] = path.split('/');
+    const application = previewAmbassadorApplications.find((item) => item.id === id);
+    if (!application) return {} as T;
+    if (action === 'approve') {
+      application.status = 'APPROVED';
+      application.reviewedBy = 'demo@jaltrade.com';
+      application.reviewedAt = new Date().toISOString();
+      application.rejectionReason = null;
+      application.promoCampaign = {
+        id: `promo-${id}`, code: `JAL${String(application.displayName).replace(/[^A-Za-z]/g, '').slice(0, 8).toUpperCase()}`,
+        active: true, redemptionsReserved: 0, endsAt: '2026-10-31T23:59:59.000Z',
+      };
+    }
+    if (action === 'reject') {
+      application.status = 'REJECTED';
+      application.reviewedBy = 'demo@jaltrade.com';
+      application.reviewedAt = new Date().toISOString();
+      application.rejectionReason = String(previewBody(options).reason ?? 'Informations complémentaires requises.');
+    }
+    return application as T;
   }
   if (path.startsWith('/admin/growth/referrals')) {
     return [
@@ -403,7 +480,7 @@ async function doRefresh(): Promise<string | null> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
-  if (isPreviewMode) return previewResponse<T>(path);
+  if (isPreviewMode) return previewResponse<T>(path, options);
   const session = getSession();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) };
   if (session) headers.Authorization = `Bearer ${session.accessToken}`;
