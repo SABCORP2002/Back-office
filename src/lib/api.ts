@@ -89,27 +89,23 @@ let previewAmbassadorProgram = {
 
 const previewAmbassadorApplications = [
   {
-    id: 'amb-001', displayName: 'Miriam Tech & Finance', whatsappUrl: 'https://chat.whatsapp.com/demo-miriam', telegramUrl: 'https://t.me/miriamtradehub', otherCommunityLinks: ['https://www.instagram.com/miriamtradehub'],
-    audienceSize: 4200, monthlyReach: 18800, engagementRate: '8.4', motivation: 'Animer une communauté éducative autour de la crypto responsable.',
+    id: 'amb-001', displayName: 'Miriam Tech & Finance', tiktokUrl: 'https://www.tiktok.com/@miriamtradehub', facebookUrl: null, youtubeUrl: null, instagramUrl: 'https://www.instagram.com/miriamtradehub', whatsappUrl: 'https://chat.whatsapp.com/demo-miriam', telegramUrl: 'https://t.me/miriamtradehub',
     status: 'PENDING', reviewedBy: null, reviewedAt: null, rejectionReason: null, createdAt: '2026-08-26T11:15:00.000Z',
     user: { id: 'usr-gh-006', email: 'ama.boateng@demo.jaltrade.local', phone: '+233 24 555 0182', country: 'Ghana', kycStatus: 'APPROVED' }, promoCampaign: null,
   },
   {
-    id: 'amb-002', displayName: 'Crypto Dakar Communauté', whatsappUrl: 'https://chat.whatsapp.com/demo-dakar', telegramUrl: 'https://t.me/cryptodakar', otherCommunityLinks: [],
-    audienceSize: 7800, monthlyReach: 35400, engagementRate: '11.2', motivation: 'Communauté sénégalaise axée sur la sécurité et les usages pratiques.',
+    id: 'amb-002', displayName: 'Crypto Dakar Communauté', tiktokUrl: null, facebookUrl: 'https://www.facebook.com/cryptodakar', youtubeUrl: 'https://www.youtube.com/@cryptodakar', instagramUrl: 'https://www.instagram.com/cryptodakar', whatsappUrl: 'https://chat.whatsapp.com/demo-dakar', telegramUrl: 'https://t.me/cryptodakar',
     status: 'APPROVED', reviewedBy: 'demo@jaltrade.com', reviewedAt: '2026-08-24T16:30:00.000Z', rejectionReason: null, createdAt: '2026-08-20T09:20:00.000Z',
     user: { id: 'usr-sn-002', email: 'mamadou.ba@demo.jaltrade.local', phone: '+221 77 345 67 89', country: 'Sénégal', kycStatus: 'APPROVED' },
     promoCampaign: { id: 'promo-004', code: 'DAKARJAL', active: true, redemptionsReserved: 47, endsAt: '2026-10-08T23:59:59.000Z' },
   },
   {
-    id: 'amb-003', displayName: 'Mali Web3 Famille', whatsappUrl: null, telegramUrl: 'https://t.me/maliweb3famille', otherCommunityLinks: ['https://www.facebook.com/maliweb3famille'],
-    audienceSize: 2100, monthlyReach: 7600, engagementRate: '5.1', motivation: 'Initiation aux actifs numériques en langue simple.',
+    id: 'amb-003', displayName: 'Mali Web3 Famille', tiktokUrl: null, facebookUrl: 'https://www.facebook.com/maliweb3famille', youtubeUrl: null, instagramUrl: null, whatsappUrl: null, telegramUrl: 'https://t.me/maliweb3famille',
     status: 'REJECTED', reviewedBy: 'operations@jaltrade.com', reviewedAt: '2026-08-22T10:05:00.000Z', rejectionReason: 'Ajoutez un lien administrable ou une preuve d’audience récente.', createdAt: '2026-08-19T14:40:00.000Z',
     user: { id: 'usr-ml-005', email: 'moussa.traore@demo.jaltrade.local', phone: '+223 76 54 32 10', country: 'Mali', kycStatus: 'APPROVED' }, promoCampaign: null,
   },
   {
-    id: 'amb-004', displayName: 'Kinshasa Crypto Réseau', whatsappUrl: 'https://chat.whatsapp.com/demo-kinshasa', telegramUrl: null, otherCommunityLinks: ['https://www.tiktok.com/@kinshasacrypto'],
-    audienceSize: 5600, monthlyReach: 22100, engagementRate: '7.7', motivation: 'Partage de contenus sur les paiements et la protection contre les arnaques.',
+    id: 'amb-004', displayName: 'Kinshasa Crypto Réseau', tiktokUrl: 'https://www.tiktok.com/@kinshasacrypto', facebookUrl: null, youtubeUrl: null, instagramUrl: 'https://www.instagram.com/kinshasacrypto', whatsappUrl: 'https://chat.whatsapp.com/demo-kinshasa', telegramUrl: null,
     status: 'PENDING', reviewedBy: null, reviewedAt: null, rejectionReason: null, createdAt: '2026-08-25T18:10:00.000Z',
     user: { id: 'usr-cd-004', email: 'joseph.kabeya@demo.jaltrade.local', phone: '+243 81 234 5678', country: 'RD Congo', kycStatus: 'APPROVED' }, promoCampaign: null,
   },
@@ -147,6 +143,21 @@ function previewResponse<T>(path: string, options: RequestInit = {}): T {
       byCountry: [{ key: 'Cameroun', count: 21, pct: 50 }, { key: 'Sénégal', count: 13, pct: 31 }, { key: 'Côte d’Ivoire', count: 8, pct: 19 }],
       byProvider: [{ key: 'Mobile Money', count: 29, pct: 69 }, { key: 'Crypto', count: 13, pct: 31 }],
       byCrypto: [{ key: 'USDT', volume: '830000', pct: 66 }, { key: 'BTC', volume: '270000', pct: 22 }, { key: 'ETH', volume: '150000', pct: 12 }],
+    } as T;
+  }
+  if (path.startsWith('/admin/dashboard/acquisition')) {
+    return {
+      range: { startDate: '2026-08-19', endDate: '2026-08-25' },
+      totalRegistrations: 58,
+      totalActivatedUsers: 31,
+      sources: [
+        { source: 'REFERRAL', registrations: 18, sharePct: 31.0, activeUsers: 13, activationRatePct: 72.2 },
+        { source: 'PAID_ADS', registrations: 12, sharePct: 20.7, activeUsers: 4, activationRatePct: 33.3 },
+        { source: 'SOCIAL_MEDIA', registrations: 15, sharePct: 25.9, activeUsers: 8, activationRatePct: 53.3 },
+        { source: 'AMBASSADOR_OR_PROMO', registrations: 8, sharePct: 13.8, activeUsers: 5, activationRatePct: 62.5 },
+        { source: 'WEB_OR_OTHER', registrations: 5, sharePct: 8.6, activeUsers: 1, activationRatePct: 20.0 },
+        { source: 'NOT_RECORDED', registrations: 0, sharePct: 0, activeUsers: 0, activationRatePct: 0 },
+      ],
     } as T;
   }
   if (path === '/admin/dashboard/alerts') {
@@ -788,6 +799,19 @@ export const dashboardApi = {
       byProvider: Array<{ key: string; count: number; pct: number }>;
       byCrypto: Array<{ key: string; volume: string; pct: number }>;
     }>(`/admin/dashboard/charts${qs(range)}`),
+  acquisition: (range: { startDate: string; endDate: string }) =>
+    get<{
+      range: { startDate: string; endDate: string };
+      totalRegistrations: number;
+      totalActivatedUsers: number;
+      sources: Array<{
+        source: 'REFERRAL' | 'PAID_ADS' | 'SOCIAL_MEDIA' | 'AMBASSADOR_OR_PROMO' | 'WEB_OR_OTHER' | 'NOT_RECORDED';
+        registrations: number;
+        sharePct: number;
+        activeUsers: number;
+        activationRatePct: number;
+      }>;
+    }>(`/admin/dashboard/acquisition${qs(range)}`),
   alerts: () => get<Array<{ severity: 'critical' | 'warning' | 'info'; title: string; detail: string }>>('/admin/dashboard/alerts'),
 };
 
@@ -1020,13 +1044,12 @@ export interface AmbassadorProgramConfig {
 export interface AmbassadorApplication {
   id: string;
   displayName: string;
+  tiktokUrl: string | null;
+  facebookUrl: string | null;
+  youtubeUrl: string | null;
+  instagramUrl: string | null;
   whatsappUrl: string | null;
   telegramUrl: string | null;
-  otherCommunityLinks: string[];
-  audienceSize: number | null;
-  monthlyReach: number | null;
-  engagementRate: string | null;
-  motivation: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewedBy: string | null;
   reviewedAt: string | null;

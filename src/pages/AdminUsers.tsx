@@ -67,7 +67,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { value: 'VIEW_GROWTH_PROGRAMS', label: 'Voir parrainage et promos', detail: 'Consulter les codes, attributions et récompenses de parrainage.' },
       { value: 'MANAGE_GROWTH_PROGRAMS', label: 'Gérer parrainage et promos', detail: 'Configurer les campagnes et approuver les récompenses.' },
       { value: 'SETTLE_GROWTH_REWARDS', label: 'Régler les récompenses externes', detail: 'Enregistrer un règlement externe avec sa référence de preuve.' },
-      { value: 'REVIEW_AMBASSADOR_APPLICATIONS', label: 'Examiner les candidatures Ambassadeur', detail: 'Approuver ou refuser un profil Ambassadeur après examen de ses liens et métriques.' },
+      { value: 'REVIEW_AMBASSADOR_APPLICATIONS', label: 'Examiner les candidatures Ambassadeur', detail: 'Approuver ou refuser un profil Ambassadeur après examen de ses liens de réseaux sociaux.' },
       { value: 'MANAGE_AMBASSADOR_PROGRAM', label: 'Gérer le programme Ambassadeur', detail: 'Définir la remise, les limites et la durée applicables aux codes Ambassadeur.' },
     ],
   },

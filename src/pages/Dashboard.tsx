@@ -16,6 +16,7 @@ const alertToneClasses: Record<string, string> = {
 
 type Summary = Awaited<ReturnType<typeof dashboardApi.summary>>;
 type Charts = Awaited<ReturnType<typeof dashboardApi.charts>>;
+type Acquisition = Awaited<ReturnType<typeof dashboardApi.acquisition>>;
 type Alerts = Awaited<ReturnType<typeof dashboardApi.alerts>>;
 type DateRange = { startDate: string; endDate: string };
 type RangePreset = 'today' | 'yesterday' | 'last7' | 'last30' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -115,15 +116,17 @@ export default function DashboardPage() {
   const [chartStyle, setChartStyle] = useState<ChartStyle>('line');
   const [summary, setSummary] = useState<Summary | null>(null);
   const [charts, setCharts] = useState<Charts | null>(null);
+  const [acquisition, setAcquisition] = useState<Acquisition | null>(null);
   const [alerts, setAlerts] = useState<Alerts>([]);
   const [error, setError] = useState(false);
 
   const load = useCallback(() => {
     setError(false);
-    Promise.all([dashboardApi.summary(range), dashboardApi.charts(range), dashboardApi.alerts()])
-      .then(([nextSummary, nextCharts, nextAlerts]) => {
+    Promise.all([dashboardApi.summary(range), dashboardApi.charts(range), dashboardApi.acquisition(range), dashboardApi.alerts()])
+      .then(([nextSummary, nextCharts, nextAcquisition, nextAlerts]) => {
         setSummary(nextSummary);
         setCharts(nextCharts);
+        setAcquisition(nextAcquisition);
         setAlerts(nextAlerts);
       })
       .catch(() => setError(true));
@@ -145,6 +148,14 @@ export default function DashboardPage() {
     { name: 'Ventes', value: charts.achatVsVente.vente, percent: formatPct((charts.achatVsVente.vente / (charts.achatVsVente.total || 1)) * 100, { sign: false }), color: '#EF4444' },
   ] : [];
   const periodLabel = readableRange(range);
+  const acquisitionLabels: Record<Acquisition['sources'][number]['source'], string> = {
+    REFERRAL: 'Recommandation',
+    PAID_ADS: 'Publicité en ligne',
+    SOCIAL_MEDIA: 'Réseaux sociaux',
+    AMBASSADOR_OR_PROMO: 'Créateur / code promo',
+    WEB_OR_OTHER: 'Recherche web / autre',
+    NOT_RECORDED: 'Non renseignée',
+  };
 
   return (
     <Screen
@@ -226,6 +237,22 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4"><Donut data={(charts?.byCountry ?? []).map((item, index) => ({ name: item.key, percent: item.pct, color: PALETTE[index % PALETTE.length] }))} /><div className="space-y-1.5 text-xs">{(charts?.byCountry ?? []).map((item, index) => <div key={item.key} className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-onSurfaceVariant"><span className="h-2 w-2 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} />{item.key}</span><span className="font-semibold">{item.pct}%</span></div>)}</div></div>
         </Card>
       </div>
+
+      <Card className="mb-4" padded={false}>
+        <div className="p-4 pb-2 sm:p-5 sm:pb-3">
+          <CardTitle>ACQUISITION UTILISATEURS</CardTitle>
+          <p className="-mt-3 text-xs text-onSurfaceVariant">Origine déclarée à l'inscription et part des utilisateurs ayant initié au moins une transaction.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border text-left text-xs text-onSurfaceVariant"><th className="px-4 py-3 font-medium">Canal</th><th className="px-4 py-3 font-medium">Inscriptions</th><th className="px-4 py-3 font-medium">Répartition</th><th className="px-4 py-3 font-medium">Utilisateurs activés</th><th className="px-4 py-3 font-medium">Taux d'activation</th></tr></thead>
+            <tbody>
+              {(acquisition?.sources ?? []).filter((row) => row.registrations > 0).map((row) => <tr key={row.source} className="border-b border-border/60"><td className="px-4 py-3 font-medium">{acquisitionLabels[row.source]}</td><td className="px-4 py-3">{row.registrations}</td><td className="px-4 py-3"><div className="flex min-w-[150px] items-center gap-2"><div className="h-1.5 flex-1 rounded-full bg-surface-highest"><div className="h-1.5 rounded-full bg-primary" style={{ width: `${row.sharePct}%` }} /></div><span className="w-10 text-right text-xs text-onSurfaceVariant">{row.sharePct}%</span></div></td><td className="px-4 py-3">{row.activeUsers}</td><td className="px-4 py-3 font-semibold text-success">{row.activationRatePct}%</td></tr>)}
+              {!acquisition && <tr><td colSpan={5} className="px-4 py-6 text-center text-onSurfaceVariant">Chargement des indicateurs d'acquisition…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card><CardTitle>RÉPARTITION PAR FOURNISSEUR</CardTitle><div className="flex items-center gap-4"><Donut data={(charts?.byProvider ?? []).map((item, index) => ({ name: item.key, percent: item.pct, color: PALETTE[index % PALETTE.length] }))} /><div className="space-y-1.5 text-xs">{(charts?.byProvider ?? []).map((item, index) => <div key={item.key} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} /><span className="text-onSurfaceVariant">{item.key}</span><span className="font-semibold">{item.pct}%</span></div>)}</div></div></Card>
